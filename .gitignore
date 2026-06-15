@@ -1,9 +1,15 @@
-# Virtual environments
+# Environment files
+.env
+.env.local
+.env.development
+.env.production
+
+# Python virtual environments
 .venv/
 venv/
-ENV/
 env/
+ENV/
 
-# Environment variables
-.env
-.env.*
+# Python cache
+__pycache__/
+*.py[cod]
