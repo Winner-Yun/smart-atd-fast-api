@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-dotenv
+python-multipart
+
+pymongo
+
+pydantic[email]
+
+cloudinary
+PyJWT
+passlib[bcrypt]
