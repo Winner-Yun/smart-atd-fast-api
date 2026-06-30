@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from src.services.auth_service import get_current_user_from_token
@@ -14,14 +14,47 @@ from src.models.attendance_model import (
     AttendanceResponse
 )
 
-attendance_router = APIRouter(
+
+router = APIRouter(
     tags=["Attendance"]
 )
 
 bearer = HTTPBearer(auto_error=False)
 
 
-@attendance_router.post(
+
+def get_authenticated_user(
+    credentials: HTTPAuthorizationCredentials
+):
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+
+    user = get_current_user_from_token(
+        credentials.credentials
+    )
+
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+
+    return user
+
+
+
+# =========================
+# CHECK IN
+# =========================
+
+@router.post(
     "/{workspace_id}/attendance/check-in",
     response_model=AttendanceResponse
 )
@@ -31,15 +64,8 @@ def check_in(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    if not credentials:
-        raise HTTPException(401, "Not authenticated")
+    user = get_authenticated_user(credentials)
 
-    user = get_current_user_from_token(
-        credentials.credentials
-    )
-
-    if not user:
-        raise HTTPException(401, "Invalid token")
 
     attendance = create_checkin_service(
         workspace_id,
@@ -51,17 +77,20 @@ def check_in(
         payload.mock_location_detected
     )
 
+
     if attendance == "not_member":
         raise HTTPException(
-            403,
-            "You are not a member of this workspace"
+            status_code=403,
+            detail="You are not a member of this workspace"
         )
+
 
     if attendance == "already_checked_in":
         raise HTTPException(
-            400,
-            "Already checked in today"
+            status_code=400,
+            detail="Already checked in today"
         )
+
 
     return AttendanceResponse(
         id=str(attendance["_id"]),
@@ -81,7 +110,12 @@ def check_in(
     )
 
 
-@attendance_router.post(
+
+# =========================
+# CHECK OUT
+# =========================
+
+@router.post(
     "/{workspace_id}/attendance/check-out"
 )
 def check_out(
@@ -89,39 +123,40 @@ def check_out(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    if not credentials:
-        raise HTTPException(401, "Not authenticated")
+    user = get_authenticated_user(credentials)
 
-    user = get_current_user_from_token(
-        credentials.credentials
-    )
-
-    if not user:
-        raise HTTPException(401, "Invalid token")
 
     attendance = create_checkout_service(
         workspace_id,
         str(user["_id"])
     )
 
+
     if attendance == "not_member":
         raise HTTPException(
-            403,
-            "You are not a member of this workspace"
+            status_code=403,
+            detail="You are not a member of this workspace"
         )
+
 
     if not attendance:
         raise HTTPException(
-            404,
-            "No attendance found for today"
+            status_code=404,
+            detail="No attendance found for today"
         )
+
 
     return {
         "message": "Checked out successfully"
     }
 
 
-@attendance_router.get("/{workspace_id}/me")
+
+# =========================
+# GET MY ATTENDANCE
+# =========================
+
+@router.get("/{workspace_id}/me")
 def get_my_attendance(
     workspace_id: str,
     page: int = 1,
@@ -131,9 +166,8 @@ def get_my_attendance(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    user = get_current_user_from_token(credentials.credentials)
-    if not user:
-        raise HTTPException(401, "Invalid token")
+    user = get_authenticated_user(credentials)
+
 
     result = get_my_attendance_service(
         workspace_id,
@@ -144,7 +178,12 @@ def get_my_attendance(
         sort_order
     )
 
+
     if result == "not_member":
-        raise HTTPException(403, "Not a member")
+        raise HTTPException(
+            status_code=403,
+            detail="Not a member"
+        )
+
 
     return result

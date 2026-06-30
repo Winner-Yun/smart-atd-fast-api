@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.services.auth_service import get_current_user_from_token
+
 from src.services.chat_service import (
     check_member,
     send_message,
@@ -14,77 +15,147 @@ from src.services.chat_service import (
 from src.models.chat_model import CreateMessageRequest
 
 
-chat_router = APIRouter(tags=["Chat"])
+router = APIRouter(
+    tags=["Chat"]
+)
+
 bearer = HTTPBearer(auto_error=False)
+
+
+
+def get_authenticated_user(
+    credentials: HTTPAuthorizationCredentials
+):
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+
+    user = get_current_user_from_token(
+        credentials.credentials
+    )
+
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+
+    return user
+
 
 
 # =========================
 # SEND MESSAGE
 # =========================
-@chat_router.post("/{workspace_id}")
+
+@router.post("/{workspace_id}")
 def send_message_api(
     workspace_id: str,
     payload: CreateMessageRequest,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    user = get_current_user_from_token(credentials.credentials)
-    if not user:
-        raise HTTPException(401, "Invalid token")
+    user = get_authenticated_user(credentials)
 
-    if not check_member(workspace_id, str(user["_id"])):
-        raise HTTPException(403, "Not workspace member")
 
-    msg = send_message(workspace_id, str(user["_id"]), payload.message)
+    user_id = str(user["_id"])
 
-    return {"id": str(msg["_id"])}
+
+    if not check_member(workspace_id, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Not workspace member"
+        )
+
+
+    msg = send_message(
+        workspace_id,
+        user_id,
+        payload.message
+    )
+
+
+    return {
+        "id": str(msg["_id"])
+    }
+
 
 
 # =========================
 # GET MESSAGES
 # =========================
-@chat_router.get("/{workspace_id}")
+
+@router.get("/{workspace_id}")
 def get_messages_api(
     workspace_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    user = get_current_user_from_token(credentials.credentials)
-    if not user:
-        raise HTTPException(401, "Invalid token")
+    user = get_authenticated_user(credentials)
 
-    if not check_member(workspace_id, str(user["_id"])):
-        raise HTTPException(403, "Not workspace member")
 
-    return get_messages(workspace_id, str(user["_id"]))
+    user_id = str(user["_id"])
+
+
+    if not check_member(workspace_id, user_id):
+        raise HTTPException(
+            status_code=403,
+            detail="Not workspace member"
+        )
+
+
+    return get_messages(
+        workspace_id,
+        user_id
+    )
+
 
 
 # =========================
 # READ MESSAGE
 # =========================
-@chat_router.patch("/{workspace_id}/{message_id}/read")
+
+@router.patch("/{workspace_id}/{message_id}/read")
 def read_message_api(
     workspace_id: str,
     message_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    user = get_current_user_from_token(credentials.credentials)
-    if not user:
-        raise HTTPException(401, "Invalid token")
+    user = get_authenticated_user(credentials)
 
-    result = read_message(workspace_id, message_id, str(user["_id"]))
+
+    result = read_message(
+        workspace_id,
+        message_id,
+        str(user["_id"])
+    )
+
 
     if not result:
-        raise HTTPException(403, "Not workspace member")
+        raise HTTPException(
+            status_code=403,
+            detail="Not workspace member"
+        )
 
-    return {"message": "read"}
+
+    return {
+        "message": "read"
+    }
+
 
 
 # =========================
 # EDIT MESSAGE
 # =========================
-@chat_router.patch("/{workspace_id}/{message_id}/edit")
+
+@router.patch("/{workspace_id}/{message_id}/edit")
 def edit_message_api(
     workspace_id: str,
     message_id: str,
@@ -92,9 +163,8 @@ def edit_message_api(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    user = get_current_user_from_token(credentials.credentials)
-    if not user:
-        raise HTTPException(401, "Invalid token")
+    user = get_authenticated_user(credentials)
+
 
     msg = edit_message(
         workspace_id,
@@ -103,29 +173,48 @@ def edit_message_api(
         payload.message
     )
 
-    if not msg:
-        raise HTTPException(404, "Message not found or not allowed")
 
-    return {"message": "edited"}
+    if not msg:
+        raise HTTPException(
+            status_code=404,
+            detail="Message not found or not allowed"
+        )
+
+
+    return {
+        "message": "edited"
+    }
+
 
 
 # =========================
 # UNSEND MESSAGE (DELETE)
 # =========================
-@chat_router.delete("/{workspace_id}/{message_id}")
+
+@router.delete("/{workspace_id}/{message_id}")
 def delete_message_api(
     workspace_id: str,
     message_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    user = get_current_user_from_token(credentials.credentials)
-    if not user:
-        raise HTTPException(401, "Invalid token")
+    user = get_authenticated_user(credentials)
 
-    result = delete_message(workspace_id, message_id, str(user["_id"]))
+
+    result = delete_message(
+        workspace_id,
+        message_id,
+        str(user["_id"])
+    )
+
 
     if not result:
-        raise HTTPException(404, "Message not found or not allowed")
+        raise HTTPException(
+            status_code=404,
+            detail="Message not found or not allowed"
+        )
 
-    return {"message": "unsent"}
+
+    return {
+        "message": "unsent"
+    }

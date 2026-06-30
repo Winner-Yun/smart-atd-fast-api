@@ -10,38 +10,105 @@ def workspace_col():
 def member_col():
     return collections("workspace_members")
 
+
 def geofence_col():
     return collections("geofences")
+
 
 def policy_col():
     return collections("attendance_policies")
 
+
 def invite_col():
     return collections("workspace_invites")
+
 
 def leave_col():
     return collections("leave_requests")
 
+
 def holiday_col():
     return collections("holidays")
+
 
 def attendance_col():
     return collections("attendances")
 
+
 ##========================
 ## WORKSPACE src.services
 #========================
-def get_workspaces_for_user_service(user_id: str):
-    workspace_ids = member_col().find({"user_id": ObjectId(user_id)}, {"workspace_id": 1})
-    workspace_ids = [entry["workspace_id"] for entry in workspace_ids]
+def get_workspaces_for_user_service(
+    user_id: str, 
+    search: str | None = None, 
+    sort: str = "asc", 
+    only_owner: bool = True
+):
+    query = {}
 
-    workspaces = workspace_col().find({"_id": {"$in": workspace_ids}})
+    if only_owner:
+        owner_workspaces = member_col().find(
+            {
+                "user_id": ObjectId(user_id),
+                "role": "owner"
+            },
+            {
+                "workspace_id": 1
+            }
+        )
+        workspace_ids = [
+            entry["workspace_id"]
+            for entry in owner_workspaces
+        ]
+
+        query["_id"] = {
+            "$in": workspace_ids
+        }
+
+    if search:
+        query["workspace_name"] = {"$regex": search, "$options": "i"}
+
+    direction = 1 if sort.lower() == "asc" else -1
+
+    workspaces = workspace_col().find(query).sort("workspace_name", direction)
     return list(workspaces)
+
 
 # =========================
 # CREATE WORKSPACE
 # =========================
-def create_workspace_service(workspace_name: str, description: str):
+def create_workspace_service(user_id: str, workspace_name: str, description: str):
+    """
+    Creates a new active workspace and geofence, while deactivating 
+    any older workspaces/geofences owned by the same user.
+    """
+    user_obj_id = ObjectId(user_id)
+
+   
+    owner_workspaces = member_col().find(
+        {
+            "user_id": user_obj_id,
+            "role": "owner"
+        },
+        {
+            "workspace_id": 1
+        }
+    )
+    old_workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
+
+    if old_workspace_ids:
+        # Deactivate old workspaces
+        workspace_col().update_many(
+            {"_id": {"$in": old_workspace_ids}, "status": "active"},
+            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        )
+        # Deactivate old geofences
+        geofence_col().update_many(
+            {"workspace_id": {"$in": old_workspace_ids}, "status": "active"},
+            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        )
+
+ 
     workspace = {
         "workspace_name": workspace_name,
         "description": description,
@@ -50,35 +117,38 @@ def create_workspace_service(workspace_name: str, description: str):
     }
 
     res = workspace_col().insert_one(workspace)
-    workspace["_id"] = res.inserted_id
+    workspace_id = res.inserted_id
+    workspace["_id"] = workspace_id
 
-    workspace_id = workspace["_id"]
 
-    # =========================
-    # AUTO CREATE GEOFENCE
-    # =========================
     geofence_col().insert_one({
         "workspace_id": workspace_id,
         "name": "Main Office",
         "latitude": 0.0,
         "longitude": 0.0,
         "radius_meters": 100,
+        "status": "active",
         "created_at": datetime.now(timezone.utc)
     })
 
-    # =========================
-    # AUTO CREATE POLICY
-    # =========================
     policy_col().insert_one({
         "workspace_id": workspace_id,
-        "check_in_start": "08:00",
-        "check_in_end": "09:00",
-        "late_buffer_minutes": 10,
-        "deadline_scan_minutes": 15,
+        "name": "Default Policy",
+        "work_start_time": "08:00 AM",
+        "work_end_time": "05:00 PM",
+        "check_in_start": "07:30 AM",
+        "check_out_start": "04:30 PM",
+        "late_buffer_minutes": 15,
+        "deadline_scan_minutes": 30,
         "annual_leave_limit": 18,
-        "sick_leave_limit": 12,
-        "created_at": datetime.now(timezone.utc)
+        "sick_leave_limit": 6,
+        "status": "active", 
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc)
     })
+
+    
+    add_owner_service(str(workspace_id), user_id)
 
     return workspace
 
@@ -147,6 +217,7 @@ def update_workspace_service(
     return workspace_col().find_one({
         "_id": ObjectId(workspace_id)
     })
+
 
 # =========================
 # DELETE WORKSPACE

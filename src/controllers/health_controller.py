@@ -3,10 +3,10 @@ from pymongo import MongoClient, errors
 
 from src.config.mongo import build_mongo_url
 
-health_router = APIRouter(tags=["Health"])
+router = APIRouter(tags=["Health"])
 
 
-@health_router.get('/mongo')
+@router.get('/mongo')
 def mongo_health():
     """Ping MongoDB and return connection status."""
     url = build_mongo_url()

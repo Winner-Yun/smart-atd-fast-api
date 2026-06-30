@@ -11,16 +11,16 @@ from src.services.auth_service import (
     upload_profile_image_to_cloudinary,
 )
 
-auth_router = APIRouter(tags=["Auth"])
+router = APIRouter(tags=["Auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-@auth_router.get('/google/login')
+@router.get('/google/login')
 def google_login():
     return {"message": "Redirect to Google Sign-In on the client side"}
 
 
-@auth_router.post('/google/callback', response_model=TokenResponse)
+@router.post('/google/callback', response_model=TokenResponse)
 def google_callback(payload: TokenRequest):
     google_user_info = verify_google_token(payload.token)
     if not google_user_info:
@@ -34,7 +34,7 @@ def google_callback(payload: TokenRequest):
     return TokenResponse(access_token=token)
 
 
-@auth_router.patch('/me', response_model=UserResponse)
+@router.patch('/me', response_model=UserResponse)
 def update_my_profile(
     payload: UpdateProfileRequest,
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
@@ -54,7 +54,7 @@ def update_my_profile(
     return UserResponse(**updated_user)
 
 
-@auth_router.patch('/me/profile-image', response_model=UserResponse)
+@router.patch('/me/profile-image', response_model=UserResponse)
 def update_my_profile_image(
     image: UploadFile = File(...),
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)

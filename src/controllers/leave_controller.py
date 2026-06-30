@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from src.services.auth_service import get_current_user_from_token
@@ -14,17 +14,47 @@ from src.models.leave_model import (
     LeaveResponse
 )
 
-leave_router = APIRouter(
+
+router = APIRouter(
     tags=["Leave"]
 )
 
 bearer = HTTPBearer(auto_error=False)
 
 
+
+def get_authenticated_user(
+    credentials: HTTPAuthorizationCredentials
+):
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated"
+        )
+
+
+    user = get_current_user_from_token(
+        credentials.credentials
+    )
+
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+
+    return user
+
+
+
 # =========================
 # CREATE LEAVE
 # =========================
-@leave_router.post(
+
+@router.post(
     "/{workspace_id}/leave",
     response_model=LeaveResponse
 )
@@ -34,15 +64,8 @@ def create_leave(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    if not credentials:
-        raise HTTPException(401, "Not authenticated")
+    user = get_authenticated_user(credentials)
 
-    user = get_current_user_from_token(
-        credentials.credentials
-    )
-
-    if not user:
-        raise HTTPException(401, "Invalid token")
 
     leave = create_leave_service(
         workspace_id,
@@ -53,17 +76,20 @@ def create_leave(
         payload.end_date
     )
 
+
     if leave == "not_member":
         raise HTTPException(
             status_code=403,
             detail="You are not a member of this workspace"
         )
 
+
     if not leave:
         raise HTTPException(
             status_code=400,
             detail="Failed to create leave request"
         )
+
 
     return LeaveResponse(
         id=str(leave["_id"]),
@@ -79,25 +105,20 @@ def create_leave(
     )
 
 
+
 # =========================
 # UPDATE LEAVE
 # =========================
-@leave_router.patch("/{leave_id}")
+
+@router.patch("/{leave_id}")
 def update_leave(
     leave_id: str,
     payload: CreateLeaveRequest,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    if not credentials:
-        raise HTTPException(401, "Not authenticated")
+    user = get_authenticated_user(credentials)
 
-    user = get_current_user_from_token(
-        credentials.credentials
-    )
-
-    if not user:
-        raise HTTPException(401, "Invalid token")
 
     leave = update_leave_service(
         leave_id,
@@ -108,11 +129,13 @@ def update_leave(
         payload.end_date
     )
 
+
     if leave == "not_allowed":
         raise HTTPException(
             status_code=403,
             detail="You can only update your own pending leave request"
         )
+
 
     if not leave:
         raise HTTPException(
@@ -120,16 +143,19 @@ def update_leave(
             detail="Leave not found"
         )
 
+
     return {
         "message": "Leave updated successfully",
         "leave_id": leave_id
     }
 
 
+
 # =========================
 # GET MY LEAVES
 # =========================
-@leave_router.get("/me")
+
+@router.get("/me")
 def get_my_leaves(
     page: int = 1,
     limit: int = 10,
@@ -138,9 +164,8 @@ def get_my_leaves(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    user = get_current_user_from_token(credentials.credentials)
-    if not user:
-        raise HTTPException(401, "Invalid token")
+    user = get_authenticated_user(credentials)
+
 
     return get_my_leaves_service(
         str(user["_id"]),
@@ -151,29 +176,25 @@ def get_my_leaves(
     )
 
 
+
 # =========================
 # DELETE LEAVE
 # =========================
-@leave_router.delete("/{leave_id}")
+
+@router.delete("/{leave_id}")
 def delete_leave(
     leave_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
-    if not credentials:
-        raise HTTPException(401, "Not authenticated")
+    user = get_authenticated_user(credentials)
 
-    user = get_current_user_from_token(
-        credentials.credentials
-    )
-
-    if not user:
-        raise HTTPException(401, "Invalid token")
 
     result = delete_leave_service(
         leave_id,
         str(user["_id"])
     )
+
 
     if result == "not_allowed":
         raise HTTPException(
@@ -181,11 +202,13 @@ def delete_leave(
             detail="You can only delete your own pending leave request"
         )
 
+
     if result is None:
         raise HTTPException(
             status_code=404,
             detail="Leave not found"
         )
+
 
     return {
         "message": "Leave deleted successfully",

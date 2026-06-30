@@ -24,13 +24,13 @@ from src.models.face_embedding_model import (
     FaceEmbeddingResponse
 )
 
-face_router = APIRouter(
+router = APIRouter(
     tags=["Face Embedding"]
 )
 
 bearer = HTTPBearer(auto_error=False)
 
-@face_router.post(
+@router.post(
     "/register",
     response_model=FaceEmbeddingResponse
 )
@@ -69,7 +69,7 @@ def register_face(
     )
 
 
-@face_router.patch(
+@router.patch(
     "/me",
     response_model=FaceEmbeddingResponse
 )
@@ -114,7 +114,7 @@ def update_face(
     )
 
 
-@face_router.get(
+@router.get(
     "/me",
     response_model=FaceEmbeddingResponse
 )
@@ -157,7 +157,7 @@ def get_my_face(
     )
 
 
-@face_router.delete("/me")
+@router.delete("/me")
 def delete_my_face(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):

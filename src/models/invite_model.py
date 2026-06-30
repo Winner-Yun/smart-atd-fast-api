@@ -4,7 +4,8 @@ from datetime import datetime
 
 class CreateInviteRequest(BaseModel):
     email: EmailStr
-    role: str = Field(default="employee")
+    position: str = Field(default="employee")
+    role: str = Field(default="member")
     expire_hours: int = Field(
         default=24,
         ge=1,
@@ -18,6 +19,7 @@ class InviteResponse(BaseModel):
     workspace_id: str
     user_id: str
     email: EmailStr
+    position: str
     role: str
     status: str
     created_at: datetime
