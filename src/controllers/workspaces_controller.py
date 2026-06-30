@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.services.attendance import get_workspace_attendance_service
-from src.services.auth import get_current_user_from_token
-from src.services.leave import get_workspace_leaves_service, approve_leave_service
-from src.models.leave import  LeaveApprovalRequest
+from src.services.attendance_service import get_workspace_attendance_service
+from src.services.auth_service import get_current_user_from_token
+from src.services.leave_service import get_workspace_leaves_service, approve_leave_service
+from src.models.leave_model import  LeaveApprovalRequest
 
-from src.services.workspaces import (
+from src.services.workspaces_service import (
     create_workspace_service,
     add_owner_service,
     check_owner,
@@ -14,49 +14,49 @@ from src.services.workspaces import (
     update_workspace_service,
     delete_workspace_service
 )
-from src.models.invite import (
+from src.models.invite_model import (
     CreateInviteRequest,
     InviteResponse,
 )
-from src.models.geofence import (
+from src.models.geofence_model import (
     UpdateGeofenceRequest,
     GeofenceResponse,
 )
 
-from src.services.invite import (
+from src.services.invite_service import (
     create_invite_service,
     delete_invite_service,
     get_workspace_invites_service
 )
 
-from src.services.geofence import (
+from src.services.geofence_service import (
     update_geofence_service,
     get_geofence_service
 )
 
-from src.models.workspaces import (
+from src.models.workspaces_model import (
     CreateWorkspaceRequest,
     UpdateWorkspaceRequest
 )
 
-from src.services.attendance_policy import (
+from src.services.attendance_policy_service import (
     get_policy_service,
     update_policy_service
 )
 
-from src.models.attendance_policy import (
+from src.models.attendance_policy_model import (
    
     UpdateAttendancePolicyRequest,
     AttendancePolicyResponse
 )
 
-from src.models.holiday import (
+from src.models.holiday_model import (
     CreateHolidayRequest,
     UpdateHolidayRequest,
     HolidayResponse
 )
 
-from src.services.holiday import (
+from src.services.holiday_service import (
     create_holiday_service,
     get_holidays_service,
     get_holiday_service,

@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.services.auth import get_current_user_from_token
-from src.services.leave import (
+from src.services.auth_service import get_current_user_from_token
+from src.services.leave_service import (
     create_leave_service,
     get_my_leaves_service,
     delete_leave_service,
     update_leave_service
 )
 
-from src.models.leave import (
+from src.models.leave_model import (
     CreateLeaveRequest,
     LeaveResponse
 )

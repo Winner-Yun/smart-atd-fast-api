@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from src.services.auth import get_current_user_from_token
+from src.services.auth_service import get_current_user_from_token
 
-from src.services.attendance import (
+from src.services.attendance_service import (
     create_checkin_service,
     create_checkout_service,
     get_my_attendance_service
 )
 
-from src.models.attendance import (
+from src.models.attendance_model import (
     CheckInRequest,
     AttendanceResponse
 )

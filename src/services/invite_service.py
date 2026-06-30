@@ -2,7 +2,7 @@ from bson import ObjectId
 from datetime import datetime, timezone, timedelta
 
 from src.config.mongo import collections
-from src.services.auth import get_user_by_email
+from src.services.auth_service import get_user_by_email
 
 
 def invite_col():

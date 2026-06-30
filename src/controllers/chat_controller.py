@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.services.auth import get_current_user_from_token
-from src.services.chat import (
+from src.services.auth_service import get_current_user_from_token
+from src.services.chat_service import (
     check_member,
     send_message,
     get_messages,
@@ -11,7 +11,7 @@ from src.services.chat import (
     delete_message
 )
 
-from src.models.chat import CreateMessageRequest
+from src.models.chat_model import CreateMessageRequest
 
 
 chat_router = APIRouter(tags=["Chat"])

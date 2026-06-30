@@ -3,15 +3,15 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from src.controllers.auth import auth_router
-from src.controllers.workspaces import workspace_router
-from src.controllers.invite import invite_router
-from src.controllers.face_embedding import face_router
-from src.controllers.health import health_router
-from src.controllers.leave import leave_router
-from src.controllers.attendance import attendance_router
-from src.controllers.notification import notification_router
-from src.controllers.chat import chat_router
+from src.controllers.auth_controller import auth_router
+from src.controllers.workspaces_controller import workspace_router
+from src.controllers.invite_controller import invite_router
+from src.controllers.face_embedding_controller import face_router
+from src.controllers.health_controller import health_router
+from src.controllers.leave_controller import leave_router
+from src.controllers.attendance_controller import attendance_router
+from src.controllers.notification_controller import notification_router
+from src.controllers.chat_controller import chat_router
 load_dotenv()
 
 app_env = os.getenv('APP_ENV', 'local')

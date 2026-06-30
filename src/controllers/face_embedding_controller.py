@@ -8,18 +8,18 @@ from fastapi.security import (
     HTTPAuthorizationCredentials
 )
 
-from src.services.auth import (
+from src.services.auth_service import (
     get_current_user_from_token
 )
 
-from src.services.face_embedding import (
+from src.services.face_embedding_service import (
     save_face_embedding_service,
     get_face_embedding_service,
     update_face_embedding_service,
     delete_face_embedding_service
 )
 
-from src.models.face_embedding import (
+from src.models.face_embedding_model import (
     CreateFaceEmbeddingRequest,
     FaceEmbeddingResponse
 )

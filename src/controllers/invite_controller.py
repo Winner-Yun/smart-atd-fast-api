@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException,status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from src.services.auth import get_current_user_from_token
-from src.services.invite import (
+from src.services.auth_service import get_current_user_from_token
+from src.services.invite_service import (
     accept_invite_service,
     get_my_invites_service,
     reject_invite_service

@@ -29,7 +29,7 @@ def attendance_col():
     return collections("attendances")
 
 ##========================
-## WORKSPACE SERVICES
+## WORKSPACE src.services
 #========================
 def get_workspaces_for_user_service(user_id: str):
     workspace_ids = member_col().find({"user_id": ObjectId(user_id)}, {"workspace_id": 1})

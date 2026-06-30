@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.services.auth import get_current_user_from_token
-from src.services.notification import (
+from src.services.auth_service import get_current_user_from_token
+from src.services.notification_service import (
     create_notification_service,
     get_my_notifications_service,
     is_member,
     read_notification_service
 )
-from src.services.workspaces import check_owner
-from src.models.notification import (
+from src.services.workspaces_service import check_owner
+from src.models.notification_model import (
     CreateNotificationRequest,
     NotificationResponse
 )
