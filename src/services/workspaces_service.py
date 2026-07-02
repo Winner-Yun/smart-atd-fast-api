@@ -31,6 +31,10 @@ def holiday_col():
     return collections("holidays")
 
 
+def holiday_config_col():
+    return collections("holiday_configs")
+
+
 def attendance_col():
     return collections("attendances")
 
@@ -84,7 +88,6 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
     """
     user_obj_id = ObjectId(user_id)
 
-   
     owner_workspaces = member_col().find(
         {
             "user_id": user_obj_id,
@@ -107,8 +110,12 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
             {"workspace_id": {"$in": old_workspace_ids}, "status": "active"},
             {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
         )
+        # Deactivate old policies
+        policy_col().update_many(
+            {"workspace_id": {"$in": old_workspace_ids}, "status": "active"},
+            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        )
 
- 
     workspace = {
         "workspace_name": workspace_name,
         "description": description,
@@ -119,7 +126,6 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
     res = workspace_col().insert_one(workspace)
     workspace_id = res.inserted_id
     workspace["_id"] = workspace_id
-
 
     geofence_col().insert_one({
         "workspace_id": workspace_id,
@@ -147,6 +153,13 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
         "updated_at": datetime.now(timezone.utc)
     })
 
+    # Auto create default holiday config
+    holiday_config_col().insert_one({
+        "workspace_id": workspace_id,
+        "include_public_holidays": True,
+        "include_weekend": "Saturday and Sunday",
+        "updated_at": datetime.now(timezone.utc)
+    })
     
     add_owner_service(str(workspace_id), user_id)
 
@@ -248,23 +261,25 @@ def delete_workspace_service(workspace_id: str):
         "workspace_id": workspace_object_id
     })
 
-    # delete geofence
+    # delete geofences
     geofence_col().delete_many({
         "workspace_id": workspace_object_id
     })
 
-    # delete attendance policy
+    # delete attendance policies
     policy_col().delete_many({
         "workspace_id": workspace_object_id
     })
 
-    # delete leaves
     leave_col().delete_many({
         "workspace_id": workspace_object_id
     })
 
-    # delete holidays
     holiday_col().delete_many({
+        "workspace_id": workspace_object_id
+    })
+    
+    holiday_config_col().delete_many({
         "workspace_id": workspace_object_id
     })
 

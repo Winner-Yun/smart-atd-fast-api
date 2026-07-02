@@ -14,7 +14,7 @@ def holiday_config_col():
 def get_holiday_config_service(workspace_id: str):
     config = holiday_config_col().find_one({"workspace_id": ObjectId(workspace_id)})
     
-    # Return default settings if the owner hasn't configured them yet
+    
     if not config:
         return {
             "workspace_id": ObjectId(workspace_id),
@@ -72,10 +72,17 @@ def create_holiday_service(workspace_id: str, name: str, date: str):
     holiday["_id"] = result.inserted_id
     return holiday
 
-def get_holidays_service(workspace_id: str, page: int = 1, limit: int = 10):
+def get_holidays_service(workspace_id: str, page: int = 1, limit: int = 10, search_term: str = None):
     skip = (page - 1) * limit
-    holidays = list(holiday_col().find({"workspace_id": ObjectId(workspace_id)}).sort("date", 1).skip(skip).limit(limit))
-    total = holiday_col().count_documents({"workspace_id": ObjectId(workspace_id)})
+
+    query = {"workspace_id": ObjectId(workspace_id)}
+    
+    if search_term:
+        query["name"] = {"$regex": search_term, "$options": "i"}
+        
+    holidays = list(holiday_col().find(query).sort("date", 1).skip(skip).limit(limit))
+    total = holiday_col().count_documents(query)
+    
     return {"page": page, "limit": limit, "total": total, "data": holidays}
 
 def get_holiday_service(holiday_id: str):
@@ -92,3 +99,27 @@ def update_holiday_service(holiday_id: str, name: str | None, date: str | None):
 def delete_holiday_service(holiday_id: str):
     result = holiday_col().delete_one({"_id": ObjectId(holiday_id)})
     return result.deleted_count > 0
+
+def is_working_day(workspace_id: str, target_date: datetime) -> bool:
+
+    config = get_holiday_config_service(workspace_id)
+    
+    weekend_rule = config.get("include_weekend", "Saturday and Sunday")
+    day_of_week = target_date.strftime("%A")
+    
+    if weekend_rule == "Saturday and Sunday" and day_of_week in ["Saturday", "Sunday"]:
+        return False
+    if weekend_rule == "Sunday only" and day_of_week == "Sunday":
+        return False
+        
+    date_str = target_date.strftime("%Y-%m-%d")
+    custom_holiday = holiday_col().find_one({
+        "workspace_id": ObjectId(workspace_id),
+        "date": date_str
+    })
+    
+    if custom_holiday:
+        return False
+
+        
+    return True

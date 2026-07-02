@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from src.services.attendance_service import auto_mark_absences_service
 from src.controllers.auth_controller import router as auth_router
 
 from src.controllers.workspace_controller.workspaces_controller import router as workspace_router
@@ -34,6 +35,32 @@ app = FastAPI(
     docs_url='/smart-docs' if app_env == 'local' else None,
     redoc_url='/smart-redoc' if app_env == 'local' else None,
 )
+
+@app.on_event("startup")
+def startup_event():
+    try:
+        print("Running auto absence service...")
+        count = auto_mark_absences_service()
+        print(f"Successfully marked {count} absences.")
+    except Exception as e:
+        print(f"Auto absence error: {e}")
+
+# ----------------------------
+# CRON ENDPOINT (IMPORTANT)
+# ----------------------------
+@app.get("/cron/auto-absent")
+def cron_auto_absent():
+    try:
+        count = auto_mark_absences_service()
+        return {
+            "success": True,
+            "marked_absent": count
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 
 app.include_router(auth_router, prefix='/auth')

@@ -10,5 +10,11 @@
       "src": "/(.*)",
       "dest": "api/index.py"
     }
+  ],
+  "crons": [
+    {
+      "path": "/cron/auto-absent",
+      "schedule": "0 10 * * *"
+    }
   ]
 }

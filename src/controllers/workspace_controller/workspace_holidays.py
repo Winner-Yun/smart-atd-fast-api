@@ -55,13 +55,22 @@ def update_holiday_config(workspace_id: str, payload: UpdateHolidayConfigRequest
         updated_at=config["updated_at"]
     )
 
+
 @router.get("/{workspace_id}/holidays")
-def get_holidays(workspace_id: str, page: int = 1, limit: int = 10, credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+def get_holidays(
+    workspace_id: str, 
+    page: int = 1, 
+    limit: int = 10, 
+    search: str = None,  # <-- 1. Added optional search query parameter
+    credentials: HTTPAuthorizationCredentials = Depends(bearer)
+):
     user = get_current_user_from_token(credentials.credentials)
     if not user:
         raise HTTPException(401, "Invalid token")
 
-    holidays = get_holidays_service(workspace_id, page, limit)
+    # 2. Pass the search query parameter into the updated service
+    holidays = get_holidays_service(workspace_id, page, limit, search_term=search)
+    
     return {
         "page": holidays["page"],
         "limit": holidays["limit"],

@@ -3,11 +3,8 @@ uvicorn
 python-dotenv
 python-multipart
 mangum
-
 pymongo
-
 pydantic[email]
-
 cloudinary
 PyJWT
 passlib[bcrypt]

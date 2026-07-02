@@ -1,4 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Header, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from src.services.auth_service import get_current_user_from_token
@@ -48,7 +51,22 @@ def get_authenticated_user(
 
     return user
 
+CRON_SECRET = os.getenv("CRON_SECRET", "my_secret_token_123")
 
+def verify_cron(x_cron_token: str = Header(None)):
+    if x_cron_token != CRON_SECRET:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+@router.post(
+    "/internal/attendance/auto-mark-absences",
+    dependencies=[Depends(verify_cron)],
+    include_in_schema=False 
+)
+def run_auto_mark_absences():
+    from src.services.attendance_service import auto_mark_absences_service
+    
+    count = auto_mark_absences_service()
+    return {"status": "success", "marked_records": count}
 
 # =========================
 # CHECK IN
@@ -156,18 +174,29 @@ def check_out(
 # GET MY ATTENDANCE
 # =========================
 
-@router.get("/{workspace_id}/me")
+@router.get(
+    "/{workspace_id}/me",
+    summary="Get My Attendance Logs",
+    description="Fetches the authenticated user's attendance records for a specific workspace. Includes optional filtering for UI dropdowns."
+)
 def get_my_attendance(
     workspace_id: str,
-    page: int = 1,
-    limit: int = 10,
-    sort_by: str = "date",
-    sort_order: str = "desc",
+    page: int = Query(1, description="Page number for pagination"),
+    limit: int = Query(10, description="Number of records per page"),
+    sort_by: str = Query("date", description="Field to sort by (date, created_at, check_in, status)"),
+    sort_order: str = Query("desc", description="Sort direction (asc or desc)"),
+    status: Optional[str] = Query(None, description="Filter by attendance status. Valid options: 'present', 'late', 'absent'"),
+    date_filter: Optional[str] = Query(None, description="Filter by relative date. Valid options: 'today', 'yesterday', 'older'"),
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
-
+    """
+    **How to use filters from the frontend:**
+    - To get everything: `GET /workspaces/{workspace_id}/attendance/me`
+    - To get only late records: `GET /workspaces/{workspace_id}/attendance/me?status=late`
+    - To get yesterday's records: `GET /workspaces/{workspace_id}/attendance/me?date_filter=yesterday`
+    - To combine filters (e.g., absent yesterday): `GET /workspaces/{workspace_id}/attendance/me?status=absent&date_filter=yesterday`
+    """
     user = get_authenticated_user(credentials)
-
 
     result = get_my_attendance_service(
         workspace_id,
@@ -175,15 +204,15 @@ def get_my_attendance(
         page,
         limit,
         sort_by,
-        sort_order
+        sort_order,
+        status=status,
+        date_filter=date_filter
     )
-
 
     if result == "not_member":
         raise HTTPException(
             status_code=403,
             detail="Not a member"
         )
-
 
     return result

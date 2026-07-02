@@ -13,8 +13,14 @@ def get_geofence_service(workspace_id: str):
     })
 
 
-def list_workspaces_geofences_service(workspace_id: str):
-    return list(geofence_col().find({"workspace_id": ObjectId(workspace_id)}))
+def list_workspaces_geofences_service(workspace_id: str, search_term: str = None):
+    query = {"workspace_id": ObjectId(workspace_id)}
+    
+   
+    if search_term:
+        query["name"] = {"$regex": search_term, "$options": "i"}
+        
+    return list(geofence_col().find(query))
 
 
 # =========================

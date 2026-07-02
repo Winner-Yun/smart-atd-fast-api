@@ -6,21 +6,26 @@ def policy_col():
     return collections("attendance_policies")
 
 def get_policy_service(workspace_id: str):
-    # Tries to find the designated active policy first
+  
     policy = policy_col().find_one({"workspace_id": ObjectId(workspace_id), "status": "active"})
     if not policy:
-        # Fallback to the first available policy configuration if none are explicitly active
+      
         policy = policy_col().find_one({"workspace_id": ObjectId(workspace_id)})
     return policy
 
-def list_workspace_policies_service(workspace_id: str):
-    return list(policy_col().find({"workspace_id": ObjectId(workspace_id)}))
+def list_workspace_policies_service(workspace_id: str, search_term: str = None):
+  
+    query = {"workspace_id": ObjectId(workspace_id)}
+    
+    if search_term:
+        query["name"] = {"$regex": search_term, "$options": "i"}
+        
+    return list(policy_col().find(query))
 
 def create_new_policy_service(workspace_id: str, user_id: str, data: dict):
     workspace_obj_id = ObjectId(workspace_id)
     user_obj_id = ObjectId(user_id)
 
-    # If the new policy is active, safely demote all existing active ones first
     if data.get("status") == "active":
         member_col = collections("workspace_members")
         owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
@@ -85,7 +90,6 @@ def delete_policy_service(workspace_id: str, policy_id: str):
     workspace_obj_id = ObjectId(workspace_id)
     policy_obj_id = ObjectId(policy_id)
 
-    # Protect against deleting the last policy layout
     if policy_col().count_documents({"workspace_id": workspace_obj_id}) <= 1:
         return {"success": False, "error": "Cannot delete your last remaining attendance policy configuration."}
 
@@ -93,7 +97,7 @@ def delete_policy_service(workspace_id: str, policy_id: str):
     if not target:
         return {"success": False, "error": "Attendance policy not found."}
 
-    # Guard: Active policies cannot be directly deleted
+  
     if target.get("status") == "active":
         return {"success": False, "error": "Cannot delete an active policy. Switch to another policy first."}
 
@@ -114,13 +118,13 @@ def activate_policy_service(workspace_id: str, policy_id: str, user_id: str):
     workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
 
     if workspace_ids:
-        # Step 1: Batch turn off everything currently active
+      
         policy_col().update_many(
             {"workspace_id": {"$in": workspace_ids}, "status": "active"},
             {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
         )
 
-    # Step 2: Set the requested policy configuration to active
+    
     policy_col().update_one(
         {"_id": policy_obj_id, "workspace_id": workspace_obj_id},
         {"$set": {"status": "active", "updated_at": datetime.now(timezone.utc)}}

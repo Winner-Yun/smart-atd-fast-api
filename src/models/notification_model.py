@@ -1,13 +1,11 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 
-
 class CreateNotificationRequest(BaseModel):
-    title: str = Field(..., example="New Notification",)
-    message: str = Field(..., example="This is a new notification", )
-    type: str = Field(..., example="info", )
-    target: str = Field(..., example="global")
-
+    title: str = Field(..., example="New Notification")
+    message: str = Field(..., example="This is a new notification")
+    type: str = Field(..., example="info")
+    target: str = Field(..., example="global OR personal:user@example.com") 
 
 class NotificationResponse(BaseModel):
     id: str

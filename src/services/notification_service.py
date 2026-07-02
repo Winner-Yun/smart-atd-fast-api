@@ -6,21 +6,20 @@ from src.config.mongo import collections
 def notification_col():
     return collections("notifications")
 
-
 def notification_read_col():
     return collections("notification_reads")
-
 
 def member_col():
     return collections("workspace_members")
 
+def user_col():
+    return collections("users") 
 
 def is_member(workspace_id: str, user_id: str):
     return member_col().find_one({
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id)
     })
-
 
 def create_notification_service(
     workspace_id: str,
@@ -30,6 +29,21 @@ def create_notification_service(
     type: str,
     target: str
 ):
+  
+    if target.startswith("personal:"):
+        email = target.split(":")[1].strip()
+        
+        target_user = user_col().find_one({"email": email})
+        if not target_user:
+            return "user_not_found"
+            
+        target_user_id = str(target_user["_id"])
+        
+   
+        if not is_member(workspace_id, target_user_id):
+            return "not_member"
+            
+        target = f"personal:{target_user_id}"
 
     data = {
         "workspace_id": ObjectId(workspace_id),

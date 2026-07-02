@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pymongo.auth import Optional
 
 from src.services.auth_service import get_current_user_from_token
 from src.services.leave_service import (
@@ -155,27 +156,37 @@ def update_leave(
 # GET MY LEAVES
 # =========================
 
-@router.get("/me")
+@router.get(
+    "/me",
+    summary="Get My Leave Requests",
+    description="Fetches the authenticated user's leave requests across the workspace. Supports filtering by approval status and relative dates."
+)
 def get_my_leaves(
-    page: int = 1,
-    limit: int = 10,
-    sort_by: str = "created_at",
-    sort_order: str = "desc",
+    page: int = Query(1, description="Page number for pagination"),
+    limit: int = Query(10, description="Number of records per page"),
+    sort_by: str = Query("created_at", description="Field to sort by (created_at, start_date, status)"),
+    sort_order: str = Query("desc", description="Sort direction (asc or desc)"),
+    status: Optional[str] = Query(None, description="Filter by approval status. Valid options: 'pending', 'approved', 'rejected'"),
+    date_filter: Optional[str] = Query(None, description="Filter by relative request date. Valid options: 'today', 'yesterday', 'older'"),
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
-
+    """
+    **How to use filters from the frontend:**
+    - To get everything: `GET /leave/me`
+    - To get pending requests only: `GET /leave/me?status=pending`
+    - To get older approved requests: `GET /leave/me?status=approved&date_filter=older`
+    """
     user = get_authenticated_user(credentials)
-
 
     return get_my_leaves_service(
         str(user["_id"]),
         page,
         limit,
         sort_by,
-        sort_order
+        sort_order,
+        status=status,
+        date_filter=date_filter
     )
-
-
 
 # =========================
 # DELETE LEAVE

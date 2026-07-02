@@ -1,5 +1,5 @@
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from src.config.mongo import collections
 
@@ -60,9 +60,10 @@ def get_my_leaves_service(
     page: int = 1,
     limit: int = 10,
     sort_by: str = "created_at",
-    sort_order: str = "desc"
+    sort_order: str = "desc",
+    status: str = None,      
+    date_filter: str = None  
 ):
-
     skip = (page - 1) * limit
     direction = -1 if sort_order == "desc" else 1
 
@@ -70,7 +71,25 @@ def get_my_leaves_service(
     if sort_by not in allowed:
         sort_by = "created_at"
 
+    
     query = {"user_id": ObjectId(user_id)}
+
+   
+    if status:
+        query["status"] = status.lower()
+
+   
+    if date_filter:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
+
+        if date_filter == "today":
+            query["created_at"] = {"$gte": today_start}
+        elif date_filter == "yesterday":
+            query["created_at"] = {"$gte": yesterday_start, "$lt": today_start}
+        elif date_filter == "older":
+            query["created_at"] = {"$lt": yesterday_start}
 
     leaves = list(
         leave_col()
@@ -101,9 +120,11 @@ def get_workspace_leaves_service(
     page: int = 1,
     limit: int = 10,
     sort_by: str = "created_at",
-    sort_order: str = "desc"
+    sort_order: str = "desc",
+    search_term: str = None,
+    status: str = None,       
+    date_filter: str = None 
 ):
-
     owner = member_col().find_one({
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(owner_id),
@@ -116,29 +137,78 @@ def get_workspace_leaves_service(
     skip = (page - 1) * limit
     direction = -1 if sort_order == "desc" else 1
 
-    allowed = ["created_at", "start_date", "status"]
-    if sort_by not in allowed:
-        sort_by = "created_at"
+   
+    base_match = {"workspace_id": ObjectId(workspace_id)}
+    
+    if status:
+      
+        base_match["status"] = status.lower()
 
-    query = {"workspace_id": ObjectId(workspace_id)}
+    if date_filter:
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        yesterday_start = today_start - timedelta(days=1)
 
-    leaves = list(
-        leave_col()
-        .find(query)
-        .sort(sort_by, direction)
-        .skip(skip)
-        .limit(limit)
-    )
+  
+        if date_filter == "today":
+            base_match["created_at"] = {"$gte": today_start}
+        elif date_filter == "yesterday":
+            base_match["created_at"] = {"$gte": yesterday_start, "$lt": today_start}
+        elif date_filter == "older":
+            base_match["created_at"] = {"$lt": yesterday_start}
 
-    total = leave_col().count_documents(query)
+
+    pipeline = [
+        {"$match": base_match},
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "_id",
+                "as": "user"
+            }
+        },
+        {"$unwind": {"path": "$user", "preserveNullAndEmptyArrays": True}}
+    ]
+
+    if search_term:
+        pipeline.append({
+            "$match": {
+                "$or": [
+                    {"user.name": {"$regex": search_term, "$options": "i"}},
+                    {"user.email": {"$regex": search_term, "$options": "i"}},
+                    {"leave_type": {"$regex": search_term, "$options": "i"}},
+                    {"reason": {"$regex": search_term, "$options": "i"}}
+                ]
+            }
+        })
+
+    count_pipeline = pipeline.copy()
+    count_pipeline.append({"$count": "total"})
+    count_res = list(leave_col().aggregate(count_pipeline))
+    total = count_res[0]["total"] if count_res else 0
+
+    pipeline.extend([
+        {"$sort": {sort_by: direction}},
+        {"$skip": skip},
+        {"$limit": limit}
+    ])
+
+    data = list(leave_col().aggregate(pipeline))
+
+
+    for item in data:
+        item["_id"] = str(item["_id"])
+        item["workspace_id"] = str(item["workspace_id"])
+        item["user_id"] = str(item["user_id"])
+        if "user" in item and item["user"]:
+            item["user"]["_id"] = str(item["user"]["_id"])
 
     return {
         "page": page,
         "limit": limit,
         "total": total,
-        "sort_by": sort_by,
-        "sort_order": sort_order,
-        "data": leaves
+        "data": data
     }
 
 

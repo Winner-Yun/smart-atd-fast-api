@@ -53,7 +53,11 @@ def add_new_geofence(workspace_id: str, payload: CreateGeofenceRequest, credenti
 
 
 @router.get("/{workspace_id}/geofences", response_model=List[GeofenceResponse])
-def list_geofences(workspace_id: str, credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+def list_geofences(
+    workspace_id: str, 
+    search: str = None, 
+    credentials: HTTPAuthorizationCredentials = Depends(bearer)
+):
     if not credentials:
         raise HTTPException(401, "Not authenticated")
 
@@ -61,7 +65,8 @@ def list_geofences(workspace_id: str, credentials: HTTPAuthorizationCredentials 
     if not user:
         raise HTTPException(401, "Invalid token")
 
-    geofences = list_workspaces_geofences_service(workspace_id)
+    geofences = list_workspaces_geofences_service(workspace_id, search_term=search)
+    
     return [
         GeofenceResponse(
             id=str(g["_id"]),

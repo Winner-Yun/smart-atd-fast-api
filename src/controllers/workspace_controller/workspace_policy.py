@@ -55,10 +55,16 @@ def create_policy(workspace_id: str, payload: CreateAttendancePolicyRequest, cre
     )
 
 @router.get("/{workspace_id}/policies", response_model=List[AttendancePolicyResponse])
-def list_all_policies(workspace_id: str, credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+def list_all_policies(
+    workspace_id: str, 
+    search: str = None,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer)
+):
     if not credentials:
         raise HTTPException(401, "Not authenticated")
-    policies = list_workspace_policies_service(workspace_id)
+    
+    policies = list_workspace_policies_service(workspace_id, search_term=search)
+    
     return [
         AttendancePolicyResponse(
             id=str(p["_id"]),

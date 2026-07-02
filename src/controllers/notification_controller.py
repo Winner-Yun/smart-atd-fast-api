@@ -57,71 +57,52 @@ def get_authenticated_user(
 # CREATE NOTIFICATION
 # =========================
 
-@router.post("/")
+@router.post("/", response_model=NotificationResponse)
 def create_notification(
     payload: CreateNotificationRequest,
     workspace_id: str = Header(...),
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
-
     user = get_authenticated_user(credentials)
 
-
-    user_id = str(user["_id"])
-
-
-    if not check_owner(workspace_id, user_id):
+    # Check if the sender is the workspace owner
+    if not check_owner(workspace_id, str(user["_id"])):
         raise HTTPException(
             status_code=403,
-            detail="Only admin can send notification"
+            detail="Only workspace owners can send notifications"
         )
 
-
-    # validate target
-
-    if payload.target == "global":
-        pass
-
-
-    elif payload.target.startswith("personal:"):
-
-        target_user = payload.target.split(":")[1]
-
-
-        if not is_member(workspace_id, target_user):
-            raise HTTPException(
-                status_code=400,
-                detail="Target user not in workspace"
-            )
-
-
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid target format"
-        )
-
-
-
-    notification = create_notification_service(
+    result = create_notification_service(
         workspace_id,
-        user_id,
+        str(user["_id"]),
         payload.title,
         payload.message,
         payload.type,
         payload.target
     )
 
+    # Handle the new email validation errors
+    if result == "user_not_found":
+        raise HTTPException(
+            status_code=404, 
+            detail="User with this email not found"
+        )
+        
+    if result == "not_member":
+        raise HTTPException(
+            status_code=400, 
+            detail="This user is not a member of the workspace"
+        )
 
     return NotificationResponse(
-        id=str(notification["_id"]),
-        workspace_id=str(notification["workspace_id"]),
-        title=notification["title"],
-        message=notification["message"],
-        type=notification["type"],
-        target=notification["target"],
+        id=str(result["_id"]),
+        workspace_id=str(result["workspace_id"]),
+        title=result["title"],
+        message=result["message"],
+        type=result["type"],
+        target=result["target"],
         is_read=False,
-        created_at=str(notification["created_at"])
+        created_at=str(result["created_at"])
     )
 
 
