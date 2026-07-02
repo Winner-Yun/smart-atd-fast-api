@@ -1,10 +1,14 @@
+# src/controllers/auth_controller.py
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from src.models.auth_model import TokenRequest, TokenResponse, UpdateProfileRequest, UserResponse
+from src.models.auth_model import TokenRequest, TokenResponse, UpdateProfileRequest, UserResponse, RefreshTokenRequest
 from src.services.auth_service import (
     verify_google_token,
     authenticate_google_user,
     create_access_token,
+    create_refresh_token,
+    verify_refresh_token_service,
+    revoke_refresh_token_service,
     get_current_user_from_token,
     update_user_profile,
     update_user_profile_image,
@@ -30,8 +34,46 @@ def google_callback(payload: TokenRequest):
     if user is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail='Authentication failed')
         
-    token = create_access_token(user['google_id'])
-    return TokenResponse(access_token=token)
+    # Generate both tokens for initial authentication flow
+    access_token = create_access_token(user['google_id'])
+    refresh_token = create_refresh_token(user['google_id'])
+    
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post('/refresh-token', response_model=TokenResponse, summary="Exchange refresh token for a new access token")
+def refresh_token_endpoint(payload: RefreshTokenRequest):
+    """
+    Validates a 30-day refresh token. If it is valid, it uses standard security rotation:
+    invalidates the old refresh token and issues a completely clean set of access/refresh pairs.
+    """
+    google_id = verify_refresh_token_service(payload.refresh_token)
+    if not google_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail='Invalid, expired, or revoked refresh token'
+        )
+        
+    # Revoke old refresh token (Token Rotation Practice)
+    revoke_refresh_token_service(payload.refresh_token)
+    
+    # Generate fresh access/refresh pairs
+    new_access_token = create_access_token(google_id)
+    new_refresh_token = create_refresh_token(google_id)
+    
+    return TokenResponse(access_token=new_access_token, refresh_token=new_refresh_token)
+
+
+@router.post('/logout', summary="Revoke a refresh token on session disconnect")
+def logout_endpoint(payload: RefreshTokenRequest):
+    """
+    Explicitly removes the provided refresh token from the database, preventing it from ever being used again.
+    """
+    revoked = revoke_refresh_token_service(payload.refresh_token)
+    if not revoked:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Token already invalid or does not exist")
+        
+    return {"message": "Logged out and token revoked successfully"}
 
 
 @router.patch('/me', response_model=UserResponse)

@@ -1,6 +1,7 @@
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
 
+from src.services.workspaces_service import attendance_col
 from src.config.mongo import collections
 
 
@@ -295,9 +296,6 @@ def approve_leave_service(
     if not owner:
         return "not_owner"
 
-    if leave["status"] != "pending":
-        return "already_processed"
-
     leave_col().update_one(
         {
             "_id": ObjectId(leave_id)
@@ -310,6 +308,47 @@ def approve_leave_service(
             }
         }
     )
+
+    
+    start_dt = datetime.strptime(leave["start_date"], "%Y-%m-%d")
+    end_dt = datetime.strptime(leave["end_date"], "%Y-%m-%d")
+    delta = end_dt - start_dt
+    
+    date_list = [(start_dt + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(delta.days + 1)]
+
+    if status == "approved":
+        for date_str in date_list:
+            attendance_col().update_one(
+                {
+                    "workspace_id": leave["workspace_id"],
+                    "user_id": leave["user_id"],
+                    "date": date_str
+                },
+                {
+                    "$set": {
+                        "status": "present", 
+                        "updated_at": datetime.now(timezone.utc)
+                    },
+                    "$setOnInsert": {
+                        "check_in": None,
+                        "check_out": None,
+                        "face_verified": False,
+                        "liveness_verified": False,
+                        "mock_location_detected": False,
+                        "latitude": 0.0,
+                        "longitude": 0.0,
+                        "created_at": datetime.now(timezone.utc)
+                    }
+                },
+                upsert=True
+            )
+            
+    elif status == "rejected":
+        attendance_col().delete_many({
+            "workspace_id": leave["workspace_id"],
+            "user_id": leave["user_id"],
+            "date": {"$in": date_list}
+        })
 
     return leave_col().find_one({
         "_id": ObjectId(leave_id)

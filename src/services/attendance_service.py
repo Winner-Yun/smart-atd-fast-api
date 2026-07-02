@@ -1,7 +1,9 @@
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
+from datetime import time as dt_time
 
 from src.services.holiday_service import is_working_day
+from src.services.attendance_policy_service import get_policy_service
 from src.config.mongo import collections
 
 
@@ -11,6 +13,32 @@ def attendance_col():
 
 def member_col():
     return collections("workspace_members")
+
+
+def _parse_policy_time(time_value: str) -> dt_time:
+    return datetime.strptime(time_value.strip(), "%I:%M %p").time()
+
+
+def _get_absence_deadline(workspace_id: str, reference_dt: datetime) -> datetime | None:
+    policy = get_policy_service(workspace_id)
+    if not policy:
+        return None
+
+    check_out_start = policy.get("check_out_start")
+    deadline_scan_minutes = policy.get("deadline_scan_minutes")
+
+    if not check_out_start or deadline_scan_minutes is None:
+        return None
+
+    check_out_time = _parse_policy_time(check_out_start)
+    check_out_dt = reference_dt.replace(
+        hour=check_out_time.hour,
+        minute=check_out_time.minute,
+        second=0,
+        microsecond=0,
+    )
+
+    return check_out_dt + timedelta(minutes=int(deadline_scan_minutes))
 
 
 def create_checkin_service(
@@ -262,6 +290,10 @@ def get_workspace_attendance_service(
         "data": data
     }
 
+#========================
+# AUTO MARK ABSENCES
+#========================
+
 def auto_mark_absences_service():
     today_dt = datetime.now(timezone.utc)
     today_str = today_dt.strftime("%Y-%m-%d")
@@ -274,22 +306,35 @@ def auto_mark_absences_service():
       
         if not is_working_day(str(ws_id), today_dt):
             continue  
+
+        absence_deadline = _get_absence_deadline(str(ws_id), today_dt)
+        if absence_deadline and today_dt < absence_deadline:
+            continue
             
-    
         members = member_col().find({"workspace_id": ws_id})
         
         for member in members:
             user_id = member["user_id"]
-            
-        
+           
             existing_attendance = attendance_col().find_one({
                 "workspace_id": ws_id,
                 "user_id": user_id,
                 "date": today_str
             })
             
+            # -------------------------------------------------------
+            # NEW CHECK: Verify if they have checked in or not yet
+            # -------------------------------------------------------
+            if existing_attendance:
+                has_checked_in = existing_attendance.get("check_in") is not None
+                is_on_approved_leave = existing_attendance.get("status") == "present"
+                
+                # If they already checked in or have an approved leave, do NOT mark them absent
+                if has_checked_in or is_on_approved_leave:
+                    continue
+            
+            # Scenario A: No attendance document exists at all -> Insert a new absent record
             if not existing_attendance:
-
                 absent_record = {
                     "workspace_id": ws_id,
                     "user_id": user_id,
@@ -306,6 +351,19 @@ def auto_mark_absences_service():
                     "updated_at": None
                 }
                 attendance_col().insert_one(absent_record)
+                marked_count += 1
+                
+            # Scenario B: A document exists but they haven't checked in yet -> Update status to absent
+            else:
+                attendance_col().update_one(
+                    {"_id": existing_attendance["_id"]},
+                    {
+                        "$set": {
+                            "status": "absent",
+                            "updated_at": today_dt
+                        }
+                    }
+                )
                 marked_count += 1
                 
     return marked_count

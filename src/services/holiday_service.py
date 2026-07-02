@@ -100,6 +100,10 @@ def delete_holiday_service(holiday_id: str):
     result = holiday_col().delete_one({"_id": ObjectId(holiday_id)})
     return result.deleted_count > 0
 
+# =========================
+# WORKING DAY CHECK
+#=========================
+
 def is_working_day(workspace_id: str, target_date: datetime) -> bool:
 
     config = get_holiday_config_service(workspace_id)

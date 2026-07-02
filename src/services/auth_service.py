@@ -1,3 +1,4 @@
+# src/services/auth_service.py
 import os
 import datetime
 import jwt
@@ -11,12 +12,16 @@ from src.config.mongo import collections
 
 JWT_SECRET = os.getenv('JWT_SECRET', 'please-change-me')
 ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '60'))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES'))
+REFRESH_TOKEN_EXPIRE_DAYS = 30
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 
 
 def get_user_collection():
     return collections('users')
+
+def get_refresh_token_collection():
+    return collections('refresh_tokens')
 
 def get_user_by_email(email: str):
     users = get_user_collection()
@@ -28,7 +33,6 @@ def verify_google_token(token: str) -> dict | None:
         return idinfo if idinfo.get('email_verified', False) else None
     except ValueError:
         return None
-
 
 def authenticate_google_user(google_user_info: dict) -> dict | None:
     users = get_user_collection()
@@ -151,6 +155,9 @@ def upload_profile_image_to_cloudinary(file):
 def get_current_user_from_token(token: str):
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        # Ensure an access token isn't being improperly used if it lacks type fields
+        if payload.get('type') == 'refresh':
+            return None
     except jwt.PyJWTError:
         return None
 
@@ -168,7 +175,68 @@ def create_access_token(subject: str):
     payload = {
         'sub': subject,
         'iat': now,
-        'exp': expire
+        'exp': expire,
+        'type': 'access'
     }
 
     return jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)
+
+
+# ==========================================
+# NEW: REFRESH TOKEN LIFECYCLE MANAGEMENT
+# ==========================================
+
+def create_refresh_token(subject: str) -> str:
+    """Generates a 30-day secure refresh token and records it in DB."""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    expire = now + datetime.timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    
+    payload = {
+        'sub': subject,
+        'iat': now,
+        'exp': expire,
+        'type': 'refresh'
+    }
+    
+    token = jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)
+    
+    # Secure tracking for revocation validation
+    get_refresh_token_collection().insert_one({
+        'google_id': subject,
+        'token': token,
+        'expires_at': expire,
+        'created_at': now
+    })
+    
+    return token
+
+
+def verify_refresh_token_service(token: str) -> str | None:
+    """Validates the structure, cryptographic signatures, and status of a refresh token."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        
+        if payload.get('type') != 'refresh':
+            return None
+            
+        google_id = payload.get('sub')
+        if not google_id:
+            return None
+            
+        # Verify it exists in our active list (not revoked)
+        db_token = get_refresh_token_collection().find_one({
+            'google_id': google_id,
+            'token': token
+        })
+        if not db_token:
+            return None
+            
+        return google_id
+    except jwt.PyJWTError:
+        return None
+
+
+def revoke_refresh_token_service(token: str) -> bool:
+    """Deletes a refresh token from storage to invalidate it immediately."""
+    result = get_refresh_token_collection().delete_one({'token': token})
+    return result.deleted_count > 0

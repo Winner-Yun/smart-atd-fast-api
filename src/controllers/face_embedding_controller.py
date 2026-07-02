@@ -32,7 +32,9 @@ bearer = HTTPBearer(auto_error=False)
 
 @router.post(
     "/register",
-    response_model=FaceEmbeddingResponse
+    response_model=FaceEmbeddingResponse,
+    summary="Register Face Embeddings",
+    description="Securely registers a user's face embedding vector. The vector is **AES encrypted** before being stored in the database to ensure biometric privacy."
 )
 def register_face(
     payload: CreateFaceEmbeddingRequest,
@@ -71,7 +73,9 @@ def register_face(
 
 @router.patch(
     "/me",
-    response_model=FaceEmbeddingResponse
+    response_model=FaceEmbeddingResponse,
+    summary="Update Face Embeddings",
+    description="Updates the authenticated user's face embedding. The new vector is safely encrypted at rest."
 )
 def update_face(
     payload: CreateFaceEmbeddingRequest,
@@ -116,7 +120,9 @@ def update_face(
 
 @router.get(
     "/me",
-    response_model=FaceEmbeddingResponse
+    response_model=FaceEmbeddingResponse,
+    summary="Get My Face Embeddings",
+    description="Retrieves the authenticated user's face embeddings. The vectors are decrypted on-the-fly and returned as a standard array of floats."
 )
 def get_my_face(
     credentials: HTTPAuthorizationCredentials = Depends(bearer)

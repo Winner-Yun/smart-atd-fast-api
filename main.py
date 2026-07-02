@@ -3,6 +3,8 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+load_dotenv()
+
 from src.services.attendance_service import auto_mark_absences_service
 from src.controllers.auth_controller import router as auth_router
 
@@ -24,7 +26,6 @@ from src.controllers.leave_controller import router as leave_router
 from src.controllers.attendance_controller import router as attendance_router
 from src.controllers.notification_controller import router as notification_router
 from src.controllers.chat_controller import router as chat_router
-load_dotenv()
 
 app_env = os.getenv('APP_ENV', 'local')
 
