@@ -15,7 +15,8 @@ ALGORITHM = 'HS256'
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES'))
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
-
+ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+ALLOWED_IMAGE_MIMES = {'image/jpeg', 'image/png', 'image/webp'}
 
 def get_user_collection():
     return collections('users')
@@ -139,7 +140,43 @@ def update_user_profile_image(google_id: str, avatar_url: str):
     return users.find_one({'google_id': google_id})
 
 
+def validate_image_security(file) -> bool:
+    """
+    Validates file extension, MIME type, and binary magic bytes 
+    to prevent script injections and disguised malicious files.
+    """
+
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise ValueError(f"Invalid file extension. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}")
+        
+    # 2. Check MIME Type from the request
+    if hasattr(file, 'content_type') and file.content_type not in ALLOWED_IMAGE_MIMES:
+        raise ValueError(f"Invalid content type. Allowed: {', '.join(ALLOWED_IMAGE_MIMES)}")
+   
+    file.file.seek(0)
+    header = file.file.read(12)
+    file.file.seek(0)  
+    
+    is_valid_signature = False
+    
+    if header.startswith(b'\xff\xd8\xff'):
+        is_valid_signature = True  # JPEG
+    elif header.startswith(b'\x89PNG\r\n\x1a\n'):
+        is_valid_signature = True  # PNG
+    elif header.startswith(b'RIFF') and header[8:12] == b'WEBP':
+        is_valid_signature = True  # WEBP
+        
+    if not is_valid_signature:
+        raise ValueError("File content signature does not match a valid image. Upload rejected.")
+        
+    return True
+
+
 def upload_profile_image_to_cloudinary(file):
+    # Run security checks before touching Cloudinary
+    validate_image_security(file)
+    
     configure_cloudinary_client()
     file.file.seek(0)
     upload_result = cloudinary.uploader.upload(
