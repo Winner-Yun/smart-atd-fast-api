@@ -20,7 +20,7 @@ from src.services.attendance_policy_service import (
     activate_policy_service
 )
 
-router = APIRouter(prefix="/workspaces", tags=["Workspace Policy"])
+router = APIRouter(tags=["Workspace Policy"])
 bearer = HTTPBearer(auto_error=False)
 
 def verify_user_and_ownership(workspace_id: str, credentials):

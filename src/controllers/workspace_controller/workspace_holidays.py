@@ -14,7 +14,7 @@ from src.services.holiday_service import (
     update_holiday_config_service
 )
 
-router = APIRouter(prefix="/workspaces", tags=["Workspace Holidays"])
+router = APIRouter(tags=["Workspace Holidays"])
 bearer = HTTPBearer(auto_error=False)
 
 # =========================

@@ -14,7 +14,7 @@ from src.services.geofence_service import (
     activate_geofence_service
 )
 
-router = APIRouter(prefix="/workspaces", tags=["Workspace Geofence"])
+router = APIRouter(tags=["Workspace Geofence"])
 bearer = HTTPBearer(auto_error=False)
 
 

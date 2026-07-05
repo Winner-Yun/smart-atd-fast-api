@@ -9,7 +9,6 @@ from src.models.leave_model import LeaveApprovalRequest
 
 
 router = APIRouter(
-    prefix="/workspaces",
     tags=["Workspace Operations"]
 )
 

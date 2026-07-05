@@ -6,7 +6,7 @@ from src.services.workspaces_service import check_owner
 from src.models.invite_model import CreateInviteRequest, InviteResponse
 from src.services.invite_service import create_invite_service, delete_invite_service, get_workspace_invites_service
 
-router = APIRouter(prefix="/workspaces", tags=["Workspace Invites"])
+router = APIRouter(tags=["Workspace Invites"])
 bearer = HTTPBearer(auto_error=False)
 
 

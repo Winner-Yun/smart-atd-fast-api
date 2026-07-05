@@ -4,7 +4,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from src.services.auth_service import get_current_user_from_token
 from src.services.workspaces_service import (
     create_workspace_service,
-    add_owner_service,
     check_owner,
     get_workspaces_for_user_service,
     update_workspace_service,
@@ -12,7 +11,7 @@ from src.services.workspaces_service import (
 )
 from src.models.workspaces_model import CreateWorkspaceRequest, UpdateWorkspaceRequest
 
-router = APIRouter(prefix="/workspaces", tags=["Workspace Base"])
+router = APIRouter(tags=["Workspace Base"])
 bearer = HTTPBearer(auto_error=False)
 
 

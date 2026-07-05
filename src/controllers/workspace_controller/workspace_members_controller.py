@@ -10,7 +10,7 @@ from src.services.workspace_members_service import (
     remove_member_service
 )
 
-router = APIRouter(prefix="/workspaces", tags=["Workspace Members"])
+router = APIRouter(tags=["Workspace Members"])
 bearer = HTTPBearer(auto_error=False)
 
 

@@ -46,7 +46,7 @@ def get_authenticated_user(
 # ACCEPT INVITE
 # ========================
 
-@router.post("/invite/{invite_id}/accept")
+@router.post("{invite_id}/accept")
 def accept_invite(
     invite_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
