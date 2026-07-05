@@ -23,11 +23,11 @@ def get_workspace_members_service(
 ):
     ws_object_id = ObjectId(workspace_id)
     
-    # 1. Fetch Registered Members
+    
     members_cursor = list(member_col().find({"workspace_id": ws_object_id}))
     user_ids = [m["user_id"] for m in members_cursor]
     
-    # Fetch associated user details
+
     users_cursor = list(user_col().find({"_id": {"$in": user_ids}}))
     user_map = {str(u["_id"]): u for u in users_cursor}
 
@@ -39,12 +39,21 @@ def get_workspace_members_service(
         
         member_list.append({
             "id": user_id_str,
-            "email": user_data.get("email", ""),
+            "google_id": user_data.get("google_id"),
+            "avatar": user_data.get("avatar"),
+            "gender": user_data.get("gender"),
+            "provider": user_data.get("provider"),
+
+            "email": user_data.get("email") or None, 
             "name": user_data.get("name", "Unknown User"),
             "role": m.get("role", "member"),
             "status": m.get("status", "active"),
             "is_pending": False,
-            "joined_at": m.get("joined_at")
+            "joined_at": m.get("joined_at"),
+            
+           
+            "created_at": m.get("created_at"),
+            "updated_at": m.get("updated_at")
         })
 
     # 2. Fetch Pending Invites (if requested)
@@ -56,8 +65,9 @@ def get_workspace_members_service(
         
         for inv in invites_cursor:
             member_list.append({
-                "id": str(inv["_id"]),  # Return invite ID for pending users
-                "email": inv.get("email", ""),
+                "id": str(inv["_id"]),  
+                # FIX: Use `or None` here as well
+                "email": inv.get("email") or None,
                 "name": "Pending Invite",
                 "role": inv.get("role", "member"),
                 "status": "pending",
@@ -65,19 +75,20 @@ def get_workspace_members_service(
                 "joined_at": inv.get("created_at")
             })
 
-    # 3. Apply Search Filter (Name or Email)
+    
     if search:
         search_lower = search.lower()
         member_list = [
             m for m in member_list 
-            if search_lower in m["email"].lower() or search_lower in m["name"].lower()
+            if search_lower in (m["email"] or "").lower() or search_lower in m["name"].lower()
         ]
 
-    # 4. Apply Sorting (A-Z or Z-A)
-    # Sorts primarily by Name, falls back to Email if Name is missing
+
     is_reverse = True if sort_order.lower() == "desc" else False
+    
+
     member_list.sort(
-        key=lambda x: (x["name"] if x["name"] != "Pending Invite" else x["email"]).lower(),
+        key=lambda x: (x["name"] if x["name"] != "Pending Invite" else (x["email"] or "")).lower(),
         reverse=is_reverse
     )
 
@@ -90,7 +101,7 @@ def update_member_status_service(workspace_id: str, user_id: str, status: str):
         {
             "workspace_id": ObjectId(workspace_id),
             "user_id": ObjectId(user_id),
-            "role": {"$ne": "owner"} # Prevent suspending the owner
+            "role": {"$ne": "owner"} 
         },
         {"$set": {"status": status, "updated_at": datetime.now(timezone.utc)}}
     )
@@ -103,7 +114,7 @@ def remove_member_service(workspace_id: str, user_id: str):
     result = member_col().delete_one({
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id),
-        "role": {"$ne": "owner"} # Prevent removing the owner
+        "role": {"$ne": "owner"} 
     })
     
     return result.deleted_count > 0

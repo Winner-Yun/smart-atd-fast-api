@@ -122,3 +122,21 @@ def update_my_profile_image(
 
     updated_user['_id'] = str(updated_user['_id'])
     return UserResponse(**updated_user)
+
+@router.get('/me', response_model=UserResponse, summary="Get current user profile")
+def get_my_profile(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
+):
+    """
+    Retrieves the profile data for the currently authenticated user.
+    """
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Not authenticated')
+
+    user = get_current_user_from_token(credentials.credentials)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid or expired token')
+
+    user['_id'] = str(user['_id'])
+    
+    return UserResponse(**user)

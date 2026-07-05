@@ -65,9 +65,8 @@ def create_workspace(payload: CreateWorkspaceRequest, credentials: HTTPAuthoriza
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
     user_id = str(user["_id"])
-    workspace = create_workspace_service(payload.workspace_name, payload.description)
+    workspace = create_workspace_service( user_id, payload.workspace_name, payload.description)
     workspace_id = str(workspace["_id"])
-    add_owner_service(workspace_id, user_id)
 
     return {"message": "Workspace created successfully", "workspace_id": workspace_id}
 
