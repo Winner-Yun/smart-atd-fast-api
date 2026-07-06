@@ -10,3 +10,4 @@ PyJWT
 passlib[bcrypt]
 google-auth
 requests
+tzdata

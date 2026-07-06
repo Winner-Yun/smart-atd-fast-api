@@ -70,6 +70,7 @@ def get_workspace_members_service(
                 "email": inv.get("email") or None,
                 "name": "Pending Invite",
                 "role": inv.get("role", "member"),
+                "position": inv.get("position", "employee"),
                 "status": "pending",
                 "is_pending": True,
                 "joined_at": inv.get("created_at")

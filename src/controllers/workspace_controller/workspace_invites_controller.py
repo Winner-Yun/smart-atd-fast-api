@@ -22,7 +22,7 @@ def invite_employee(workspace_id: str, payload: CreateInviteRequest, credentials
     if not check_owner(workspace_id, str(current_user["_id"])):
         raise HTTPException(403, detail="Only workspace owner can invite employees")
 
-    invite = create_invite_service(workspace_id, payload.email, payload.role, payload.expire_hours)
+    invite = create_invite_service(workspace_id, payload.email, payload.position, payload.role, payload.expire_hours)
     if invite is None:
         raise HTTPException(404, detail="User account not found")
     if invite == "already_invited":

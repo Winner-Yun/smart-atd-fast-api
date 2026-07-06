@@ -1,6 +1,7 @@
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
 from datetime import time as dt_time
+from zoneinfo import ZoneInfo  # Python 3.9+ native timezone support
 
 from src.services.holiday_service import is_working_day
 from src.services.attendance_policy_service import get_policy_service
@@ -19,6 +20,14 @@ def _parse_policy_time(time_value: str) -> dt_time:
     return datetime.strptime(time_value.strip(), "%I:%M %p").time()
 
 
+def _get_workspace_tz(workspace_id: str) -> ZoneInfo:
+    """Helper to fetch workspace timezone from policy, defaulting to GMT+7."""
+    policy = get_policy_service(workspace_id)
+    if policy and "timezone" in policy:
+        return ZoneInfo(policy["timezone"])
+    return ZoneInfo("Asia/Phnom_Penh")  
+
+
 def _get_absence_deadline(workspace_id: str, reference_dt: datetime) -> datetime | None:
     policy = get_policy_service(workspace_id)
     if not policy:
@@ -30,15 +39,21 @@ def _get_absence_deadline(workspace_id: str, reference_dt: datetime) -> datetime
     if not check_out_start or deadline_scan_minutes is None:
         return None
 
+    # FIX: Convert UTC reference time to local workspace timezone before replacing hours
+    local_tz = _get_workspace_tz(workspace_id)
+    local_dt = reference_dt.astimezone(local_tz)
+
     check_out_time = _parse_policy_time(check_out_start)
-    check_out_dt = reference_dt.replace(
+    local_deadline = local_dt.replace(
         hour=check_out_time.hour,
         minute=check_out_time.minute,
         second=0,
         microsecond=0,
     )
 
-    return check_out_dt + timedelta(minutes=int(deadline_scan_minutes))
+    # Add scan minutes in local context, then convert back to UTC for safe matching
+    final_deadline = local_deadline + timedelta(minutes=int(deadline_scan_minutes))
+    return final_deadline.astimezone(timezone.utc)
 
 
 def create_checkin_service(
@@ -50,7 +65,6 @@ def create_checkin_service(
     liveness_verified: bool,
     mock_location_detected: bool
 ):
-
     member = member_col().find_one({
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id)
@@ -59,7 +73,9 @@ def create_checkin_service(
     if not member:
         return "not_member"
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # FIX: Use workspace local time instead of UTC to determine the calendar date string
+    local_tz = _get_workspace_tz(workspace_id)
+    today = datetime.now(local_tz).strftime("%Y-%m-%d")
 
     existing = attendance_col().find_one({
         "workspace_id": ObjectId(workspace_id),
@@ -68,42 +84,49 @@ def create_checkin_service(
     })
 
     if existing:
+        # FIX: If an automatic 'absent' placeholder exists, let them overwrite it with an actual check-in
+        if existing.get("status") == "absent" and existing.get("check_in") is None:
+            attendance_col().update_one(
+                {"_id": existing["_id"]},
+                {
+                    "$set": {
+                        "check_in": datetime.now(timezone.utc),
+                        "status": "present",  # Switches from absent to present
+                        "face_verified": face_verified,
+                        "liveness_verified": liveness_verified,
+                        "mock_location_detected": mock_location_detected,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "updated_at": datetime.now(timezone.utc)
+                    }
+                }
+            )
+            return attendance_col().find_one({"_id": existing["_id"]})
+            
         return "already_checked_in"
 
     attendance = {
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id),
-
         "date": today,
-
         "check_in": datetime.now(timezone.utc),
         "check_out": None,
-
         "status": "present",
-
         "face_verified": face_verified,
         "liveness_verified": liveness_verified,
         "mock_location_detected": mock_location_detected,
-
         "latitude": latitude,
         "longitude": longitude,
-
         "created_at": datetime.now(timezone.utc),
         "updated_at": None
     }
 
     result = attendance_col().insert_one(attendance)
-
     attendance["_id"] = result.inserted_id
-
     return attendance
 
 
-def create_checkout_service(
-    workspace_id: str,
-    user_id: str
-):
-
+def create_checkout_service(workspace_id: str, user_id: str):
     member = member_col().find_one({
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id)
@@ -112,7 +135,9 @@ def create_checkout_service(
     if not member:
         return "not_member"
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # FIX: Use workspace local date to look up today's record
+    local_tz = _get_workspace_tz(workspace_id)
+    today = datetime.now(local_tz).strftime("%Y-%m-%d")
 
     attendance = attendance_col().find_one({
         "workspace_id": ObjectId(workspace_id),
@@ -124,9 +149,7 @@ def create_checkout_service(
         return None
 
     attendance_col().update_one(
-        {
-            "_id": attendance["_id"]
-        },
+        {"_id": attendance["_id"]},
         {
             "$set": {
                 "check_out": datetime.now(timezone.utc),
@@ -135,9 +158,7 @@ def create_checkout_service(
         }
     )
 
-    return attendance_col().find_one({
-        "_id": attendance["_id"]
-    })
+    return attendance_col().find_one({"_id": attendance["_id"]})
 
 
 def get_my_attendance_service(
@@ -165,7 +186,6 @@ def get_my_attendance_service(
     if sort_by not in allowed:
         sort_by = "date"
 
-
     query = {
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id)
@@ -174,16 +194,16 @@ def get_my_attendance_service(
     if status:
         query["status"] = status.lower()
 
-   
     if date_filter:
-        now = datetime.now(timezone.utc)
+        local_tz = _get_workspace_tz(workspace_id)
+        now_local = datetime.now(local_tz)
         if date_filter == "today":
-            query["date"] = now.strftime("%Y-%m-%d")
+            query["date"] = now_local.strftime("%Y-%m-%d")
         elif date_filter == "yesterday":
-            yesterday = now - timedelta(days=1)
+            yesterday = now_local - timedelta(days=1)
             query["date"] = yesterday.strftime("%Y-%m-%d")
         elif date_filter == "older":
-            yesterday = now - timedelta(days=1)
+            yesterday = now_local - timedelta(days=1)
             query["date"] = {"$lt": yesterday.strftime("%Y-%m-%d")}
 
     data = list(
@@ -202,6 +222,7 @@ def get_my_attendance_service(
         "total": total,
         "data": data
     }
+
 
 def get_workspace_attendance_service(
     workspace_id: str,
@@ -228,14 +249,11 @@ def get_workspace_attendance_service(
     allowed = ["date", "created_at", "check_in", "check_out"]
     if sort_by not in allowed:
         sort_by = "date"
-
    
     base_match = {"workspace_id": ObjectId(workspace_id)}
     if status:
-    
         base_match["status"] = status.lower()
 
-   
     pipeline = [
         {"$match": base_match},
         {
@@ -249,7 +267,6 @@ def get_workspace_attendance_service(
         {"$unwind": {"path": "$user", "preserveNullAndEmptyArrays": True}}
     ]
 
-    # Search filter matching employee details
     if search_term:
         pipeline.append({
             "$match": {
@@ -260,13 +277,11 @@ def get_workspace_attendance_service(
             }
         })
 
-    # Get count total
     count_pipeline = pipeline.copy()
     count_pipeline.append({"$count": "total"})
     count_res = list(attendance_col().aggregate(count_pipeline))
     total = count_res[0]["total"] if count_res else 0
 
-    # Sort and paginate
     pipeline.extend([
         {"$sort": {sort_by: direction}},
         {"$skip": skip},
@@ -275,7 +290,6 @@ def get_workspace_attendance_service(
 
     data = list(attendance_col().aggregate(pipeline))
 
-    # Clean ObjectIds
     for item in data:
         item["_id"] = str(item["_id"])
         item["workspace_id"] = str(item["workspace_id"])
@@ -290,21 +304,23 @@ def get_workspace_attendance_service(
         "data": data
     }
 
-#========================
+
+# ========================
 # AUTO MARK ABSENCES
-#========================
+# ========================
 
 def auto_mark_absences_service():
     today_dt = datetime.now(timezone.utc)
-    today_str = today_dt.strftime("%Y-%m-%d")
-    
     workspaces = member_col().distinct("workspace_id")
-    
     marked_count = 0
     
     for ws_id in workspaces:
+        # FIX: Find the current date context relative to the workspace's timezone location
+        local_tz = _get_workspace_tz(str(ws_id))
+        local_today = today_dt.astimezone(local_tz)
+        today_str = local_today.strftime("%Y-%m-%d")
       
-        if not is_working_day(str(ws_id), today_dt):
+        if not is_working_day(str(ws_id), local_today):
             continue  
 
         absence_deadline = _get_absence_deadline(str(ws_id), today_dt)
@@ -322,18 +338,13 @@ def auto_mark_absences_service():
                 "date": today_str
             })
             
-            # -------------------------------------------------------
-            # NEW CHECK: Verify if they have checked in or not yet
-            # -------------------------------------------------------
             if existing_attendance:
                 has_checked_in = existing_attendance.get("check_in") is not None
-                is_on_approved_leave = existing_attendance.get("status") == "present"
+                is_on_approved_leave = existing_attendance.get("status") in ["present", "leave"]
                 
-                # If they already checked in or have an approved leave, do NOT mark them absent
                 if has_checked_in or is_on_approved_leave:
                     continue
             
-            # Scenario A: No attendance document exists at all -> Insert a new absent record
             if not existing_attendance:
                 absent_record = {
                     "workspace_id": ws_id,
@@ -353,7 +364,6 @@ def auto_mark_absences_service():
                 attendance_col().insert_one(absent_record)
                 marked_count += 1
                 
-            # Scenario B: A document exists but they haven't checked in yet -> Update status to absent
             else:
                 attendance_col().update_one(
                     {"_id": existing_attendance["_id"]},

@@ -176,6 +176,7 @@ def add_owner_service(
     member = {
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id),
+        "position": "owner",
         "role": "owner",
         "joined_at": datetime.now(timezone.utc)
     }

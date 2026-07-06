@@ -16,6 +16,7 @@ def member_col():
 def create_invite_service(
     workspace_id: str,
     email: str,
+    position: str,
     role: str,
     expire_hours: int = 24
 ):
@@ -37,6 +38,7 @@ def create_invite_service(
         "workspace_id": ObjectId(workspace_id),
         "user_id": user["_id"],
         "email": email,
+        "position": position,
         "role": role,
         "status": "pending",
         "created_at": datetime.now(timezone.utc),
@@ -98,6 +100,7 @@ def accept_invite_service(
     member = {
         "workspace_id": invite["workspace_id"],
         "user_id": invite["user_id"],
+        "position": invite["position"],
         "role": invite["role"],
         "joined_at": datetime.now(timezone.utc)
     }
@@ -145,6 +148,7 @@ def get_workspace_invites_service(
             "workspace_id": str(invite["workspace_id"]),
             "user_id": str(invite["user_id"]),
             "email": invite["email"],
+            "position": invite["position"],
             "role": invite["role"],
             "status": invite["status"],
             "created_at": invite["created_at"],
@@ -215,6 +219,7 @@ def get_my_invites_service(user_id: str, page: int = 1, limit: int = 10):
                 "id": str(i["_id"]),
                 "workspace_id": str(i["workspace_id"]),
                 "email": i["email"],
+                "position": i["position"],
                 "role": i["role"],
                 "status": i["status"],
                 "created_at": i["created_at"],
