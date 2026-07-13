@@ -124,7 +124,9 @@ def get_workspace_leaves_service(
     sort_order: str = "desc",
     search_term: str = None,
     status: str = None,       
-    date_filter: str = None 
+    date_filter: str = None,
+    exact_date: str = None,
+    month_year: str = None
 ):
     owner = member_col().find_one({
         "workspace_id": ObjectId(workspace_id),
@@ -138,19 +140,27 @@ def get_workspace_leaves_service(
     skip = (page - 1) * limit
     direction = -1 if sort_order == "desc" else 1
 
-   
     base_match = {"workspace_id": ObjectId(workspace_id)}
     
     if status:
-      
         base_match["status"] = status.lower()
 
-    if date_filter:
+    if exact_date:
+        target_date = datetime.strptime(exact_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        next_day = target_date + timedelta(days=1)
+        base_match["created_at"] = {"$gte": target_date, "$lt": next_day}
+    
+    elif month_year:
+        target_month = datetime.strptime(month_year, "%Y-%m").replace(tzinfo=timezone.utc)
+        # Advance to the 1st of the next month
+        next_month = (target_month.replace(day=28) + timedelta(days=4)).replace(day=1)
+        base_match["created_at"] = {"$gte": target_month, "$lt": next_month}
+        
+    elif date_filter:
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
 
-  
         if date_filter == "today":
             base_match["created_at"] = {"$gte": today_start}
         elif date_filter == "yesterday":

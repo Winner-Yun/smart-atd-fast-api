@@ -50,14 +50,10 @@ def get_workspace_leaves(
     search: Optional[str] = Query(None, description="Search term for employee name, email, leave type, or reason"),
     status: Optional[str] = Query(None, description="Filter by approval status. Valid options: 'pending', 'approved', 'rejected'"),       
     date_filter: Optional[str] = Query(None, description="Filter by relative request date. Valid options: 'today', 'yesterday', 'older'"),  
+    exact_date: Optional[str] = Query(None, description="Filter by exact date (YYYY-MM-DD)"),
+    month_year: Optional[str] = Query(None, description="Filter by month and year (YYYY-MM)"),
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
-    """
-    **How to use filters from the frontend:**
-    - Get everything: `GET /workspaces/leaves/{workspace_id}`
-    - Search for an employee (e.g., Sok): `GET /workspaces/leaves/{workspace_id}?search=Sok`
-    - Get pending leaves submitted today: `GET /workspaces/leaves/{workspace_id}?status=pending&date_filter=today`
-    """
     user = get_authenticated_user(credentials)
 
     result = get_workspace_leaves_service(
@@ -69,7 +65,9 @@ def get_workspace_leaves(
         sort_order,
         search_term=search,
         status=status,            
-        date_filter=date_filter   
+        date_filter=date_filter,
+        exact_date=exact_date,
+        month_year=month_year
     )
 
     if result == "not_owner":
@@ -129,15 +127,10 @@ def get_workspace_attendance(
     sort_order: str = Query("desc", description="Sort direction (asc or desc)"),
     search: Optional[str] = Query(None, description="Search term for employee name or email"),
     status: Optional[str] = Query(None, description="Filter by attendance status. Valid options: 'present', 'late', 'absent'"),       
+    exact_date: Optional[str] = Query(None, description="Filter by exact date (YYYY-MM-DD)"),
+    month_year: Optional[str] = Query(None, description="Filter by month and year (YYYY-MM)"),
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
-    """
-    **How to use filters from the frontend:**
-    - Get everything: `GET /workspaces/attendance/{workspace_id}`
-    - Search for an employee (e.g., Chan): `GET /workspaces/attendance/{workspace_id}?search=chan`
-    - Filter to see only late employees: `GET /workspaces/attendance/{workspace_id}?status=late`
-    - Search for late employees named Chan: `GET /workspaces/attendance/{workspace_id}?search=chan&status=late`
-    """
     user = get_authenticated_user(credentials)
 
     result = get_workspace_attendance_service(
@@ -148,7 +141,9 @@ def get_workspace_attendance(
         sort_by,
         sort_order,
         search_term=search,
-        status=status 
+        status=status,
+        exact_date=exact_date,
+        month_year=month_year
     )
 
     if result == "not_owner":

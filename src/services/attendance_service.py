@@ -232,7 +232,9 @@ def get_workspace_attendance_service(
     sort_by: str = "date",
     sort_order: str = "desc",
     search_term: str = None,
-    status: str = None 
+    status: str = None,
+    exact_date: str = None,
+    month_year: str = None
 ):
     owner = member_col().find_one({
         "workspace_id": ObjectId(workspace_id),
@@ -253,6 +255,12 @@ def get_workspace_attendance_service(
     base_match = {"workspace_id": ObjectId(workspace_id)}
     if status:
         base_match["status"] = status.lower()
+
+    # Apply Exact Date or Month/Year filters
+    if exact_date:
+        base_match["date"] = exact_date
+    elif month_year:
+        base_match["date"] = {"$regex": f"^{month_year}"}
 
     pipeline = [
         {"$match": base_match},
