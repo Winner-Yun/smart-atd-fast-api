@@ -12,6 +12,7 @@ from src.services.leave_service import (
 
 from src.models.leave_model import (
     CreateLeaveRequest,
+    UpdateLeaveRequest,
     LeaveResponse
 )
 
@@ -84,6 +85,12 @@ def create_leave(
             detail="You are not a member of this workspace"
         )
 
+    if isinstance(leave, str) and leave in {"invalid_leave_dates", "invalid_leave_range"}:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date and end_date must be valid YYYY-MM-DD dates and start_date cannot be after end_date"
+        )
+
 
     if not leave:
         raise HTTPException(
@@ -114,7 +121,7 @@ def create_leave(
 @router.patch("/{leave_id}")
 def update_leave(
     leave_id: str,
-    payload: CreateLeaveRequest,
+    payload: UpdateLeaveRequest,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
@@ -135,6 +142,12 @@ def update_leave(
         raise HTTPException(
             status_code=403,
             detail="You can only update your own pending leave request"
+        )
+
+    if isinstance(leave, str) and leave in {"invalid_leave_dates", "invalid_leave_range"}:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date and end_date must be valid YYYY-MM-DD dates and start_date cannot be after end_date"
         )
 
 

@@ -106,6 +106,12 @@ def approve_leave(
             detail="Leave request not found"
         )
 
+    if leave == "invalid_leave_dates":
+        raise HTTPException(
+            status_code=400,
+            detail="Leave request has invalid start_date or end_date"
+        )
+
     return {
         "message": f"Leave {payload.status}"
     }

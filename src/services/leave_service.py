@@ -13,6 +13,35 @@ def member_col():
     return collections("workspace_members")
 
 
+def _parse_leave_date(date_value):
+    if isinstance(date_value, datetime):
+        return date_value
+
+    if isinstance(date_value, str):
+        try:
+            return datetime.strptime(date_value, "%Y-%m-%d")
+        except ValueError:
+            try:
+                return datetime.fromisoformat(date_value)
+            except ValueError:
+                return None
+
+    return None
+
+
+def _validate_leave_dates(start_date, end_date):
+    start_dt = _parse_leave_date(start_date)
+    end_dt = _parse_leave_date(end_date)
+
+    if not start_dt or not end_dt:
+        return None, None, "invalid_leave_dates"
+
+    if start_dt.date() > end_dt.date():
+        return None, None, "invalid_leave_range"
+
+    return start_dt.strftime("%Y-%m-%d"), end_dt.strftime("%Y-%m-%d"), None
+
+
 # =========================
 # HELPER: SERIALIZE OBJECTID
 # =========================
@@ -52,13 +81,17 @@ def create_leave_service(
     if not member:
         return "not_member"
 
+    start_date_value, end_date_value, error = _validate_leave_dates(start_date, end_date)
+    if error:
+        return error
+
     leave = {
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id),
         "leave_type": leave_type,
         "reason": reason,
-        "start_date": start_date,
-        "end_date": end_date,
+        "start_date": start_date_value,
+        "end_date": end_date_value,
         "status": "pending",
         "approved_by": None,
         "created_at": datetime.now(timezone.utc),
@@ -255,6 +288,20 @@ def update_leave_service(
     if leave["status"] != "pending":
         return "not_allowed"
 
+    current_start_date = leave.get("start_date")
+    current_end_date = leave.get("end_date")
+
+    next_start_date = start_date if start_date is not None else current_start_date
+    next_end_date = end_date if end_date is not None else current_end_date
+
+    normalized_start_date, normalized_end_date, error = _validate_leave_dates(
+        next_start_date,
+        next_end_date
+    )
+
+    if error:
+        return error
+
     update_data = {
         "updated_at": datetime.now(timezone.utc)
     }
@@ -266,10 +313,10 @@ def update_leave_service(
         update_data["reason"] = reason
 
     if start_date is not None:
-        update_data["start_date"] = start_date
+        update_data["start_date"] = normalized_start_date
 
     if end_date is not None:
-        update_data["end_date"] = end_date
+        update_data["end_date"] = normalized_end_date
 
     leave_col().update_one(
         {"_id": ObjectId(leave_id)},
@@ -316,8 +363,12 @@ def approve_leave_service(
         }
     )
     
-    start_dt = datetime.strptime(leave["start_date"], "%Y-%m-%d")
-    end_dt = datetime.strptime(leave["end_date"], "%Y-%m-%d")
+    start_dt = _parse_leave_date(leave.get("start_date"))
+    end_dt = _parse_leave_date(leave.get("end_date"))
+
+    if not start_dt or not end_dt:
+        return "invalid_leave_dates"
+
     delta = end_dt - start_dt
     
     date_list = [(start_dt + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(delta.days + 1)]
