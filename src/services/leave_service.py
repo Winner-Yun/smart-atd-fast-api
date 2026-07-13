@@ -14,6 +14,26 @@ def member_col():
 
 
 # =========================
+# HELPER: SERIALIZE OBJECTID
+# =========================
+def serialize_mongo_doc(doc):
+    """
+    Recursively converts MongoDB ObjectIds to strings in dictionaries and lists.
+    """
+    if doc is None:
+        return None
+    if isinstance(doc, list):
+        return [serialize_mongo_doc(item) for item in doc]
+    if isinstance(doc, dict):
+        for key, value in doc.items():
+            if isinstance(value, ObjectId):
+                doc[key] = str(value)
+            elif isinstance(value, (dict, list)):
+                doc[key] = serialize_mongo_doc(value)
+    return doc
+
+
+# =========================
 # CREATE LEAVE REQUEST
 # =========================
 def create_leave_service(
@@ -24,7 +44,6 @@ def create_leave_service(
     start_date: str,
     end_date: str
 ):
-
     member = member_col().find_one({
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id)
@@ -47,10 +66,9 @@ def create_leave_service(
     }
 
     result = leave_col().insert_one(leave)
-
     leave["_id"] = result.inserted_id
 
-    return leave
+    return serialize_mongo_doc(leave)
 
 
 # =========================
@@ -71,14 +89,11 @@ def get_my_leaves_service(
     allowed = ["created_at", "start_date", "status"]
     if sort_by not in allowed:
         sort_by = "created_at"
-
     
     query = {"user_id": ObjectId(user_id)}
-
    
     if status:
         query["status"] = status.lower()
-
    
     if date_filter:
         now = datetime.now(timezone.utc)
@@ -108,7 +123,7 @@ def get_my_leaves_service(
         "total": total,
         "sort_by": sort_by,
         "sort_order": sort_order,
-        "data": leaves
+        "data": serialize_mongo_doc(leaves)
     }
 
 
@@ -168,7 +183,6 @@ def get_workspace_leaves_service(
         elif date_filter == "older":
             base_match["created_at"] = {"$lt": yesterday_start}
 
-
     pipeline = [
         {"$match": base_match},
         {
@@ -207,19 +221,11 @@ def get_workspace_leaves_service(
 
     data = list(leave_col().aggregate(pipeline))
 
-
-    for item in data:
-        item["_id"] = str(item["_id"])
-        item["workspace_id"] = str(item["workspace_id"])
-        item["user_id"] = str(item["user_id"])
-        if "user" in item and item["user"]:
-            item["user"]["_id"] = str(item["user"]["_id"])
-
     return {
         "page": page,
         "limit": limit,
         "total": total,
-        "data": data
+        "data": serialize_mongo_doc(data)
     }
 
 
@@ -236,7 +242,6 @@ def update_leave_service(
     start_date: str | None,
     end_date: str | None
 ):
-
     leave = leave_col().find_one({
         "_id": ObjectId(leave_id)
     })
@@ -267,17 +272,12 @@ def update_leave_service(
         update_data["end_date"] = end_date
 
     leave_col().update_one(
-        {
-            "_id": ObjectId(leave_id)
-        },
-        {
-            "$set": update_data
-        }
+        {"_id": ObjectId(leave_id)},
+        {"$set": update_data}
     )
 
-    return leave_col().find_one({
-        "_id": ObjectId(leave_id)
-    })
+    updated_leave = leave_col().find_one({"_id": ObjectId(leave_id)})
+    return serialize_mongo_doc(updated_leave)
 
 
 # =========================
@@ -289,7 +289,6 @@ def approve_leave_service(
     owner_id: str,
     status: str
 ):
-
     leave = leave_col().find_one({
         "_id": ObjectId(leave_id)
     })
@@ -307,9 +306,7 @@ def approve_leave_service(
         return "not_owner"
 
     leave_col().update_one(
-        {
-            "_id": ObjectId(leave_id)
-        },
+        {"_id": ObjectId(leave_id)},
         {
             "$set": {
                 "status": status,
@@ -318,7 +315,6 @@ def approve_leave_service(
             }
         }
     )
-
     
     start_dt = datetime.strptime(leave["start_date"], "%Y-%m-%d")
     end_dt = datetime.strptime(leave["end_date"], "%Y-%m-%d")
@@ -360,9 +356,8 @@ def approve_leave_service(
             "date": {"$in": date_list}
         })
 
-    return leave_col().find_one({
-        "_id": ObjectId(leave_id)
-    })
+    updated_leave = leave_col().find_one({"_id": ObjectId(leave_id)})
+    return serialize_mongo_doc(updated_leave)
 
 
 # =========================
@@ -374,7 +369,6 @@ def delete_leave_service(
     leave_id: str,
     user_id: str
 ):
-
     leave = leave_col().find_one({
         "_id": ObjectId(leave_id)
     })
@@ -392,4 +386,4 @@ def delete_leave_service(
         "_id": ObjectId(leave_id)
     })
 
-    return leave
+    return serialize_mongo_doc(leave)
