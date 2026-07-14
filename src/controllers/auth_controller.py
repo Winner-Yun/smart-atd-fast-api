@@ -10,6 +10,7 @@ from src.services.auth_service import (
     verify_refresh_token_service,
     revoke_refresh_token_service,
     get_current_user_from_token,
+    get_all_users_service,
     update_user_profile,
     update_user_profile_image,
     upload_profile_image_to_cloudinary,
@@ -140,3 +141,20 @@ def get_my_profile(
     user['_id'] = str(user['_id'])
     
     return UserResponse(**user)
+
+
+@router.get('/users', summary="Get all users")
+def get_all_users(
+    search: str | None = None,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
+):
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Not authenticated')
+
+    current_user = get_current_user_from_token(credentials.credentials)
+    if current_user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail='Invalid or expired token')
+
+    return {
+        "users": get_all_users_service(search=search)
+    }

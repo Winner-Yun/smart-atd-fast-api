@@ -42,7 +42,13 @@ def invite_employee(workspace_id: str, payload: CreateInviteRequest, credentials
 
 
 @router.get("/{workspace_id}/invites")
-def get_workspace_invites(workspace_id: str, page: int = 1, limit: int = 10, credentials: HTTPAuthorizationCredentials = Depends(bearer)):
+def get_workspace_invites(
+    workspace_id: str,
+    page: int = 1,
+    limit: int = 10,
+    status: str | None = None,
+    credentials: HTTPAuthorizationCredentials = Depends(bearer)
+):
     if not credentials:
         raise HTTPException(401, "Not authenticated")
 
@@ -53,7 +59,10 @@ def get_workspace_invites(workspace_id: str, page: int = 1, limit: int = 10, cre
     if not check_owner(workspace_id, str(user["_id"])):
         raise HTTPException(403, "Only owner can view invites")
 
-    return get_workspace_invites_service(workspace_id, page, limit)
+    if status is not None and status not in {"pending", "accepted"}:
+        raise HTTPException(400, "Status must be pending or accepted")
+
+    return get_workspace_invites_service(workspace_id, page, limit, status)
 
 
 @router.delete("/invite/{invite_id}")

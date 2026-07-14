@@ -28,6 +28,37 @@ def get_user_by_email(email: str):
     users = get_user_collection()
     return users.find_one({'email': email})
 
+
+def get_all_users_service(search: str | None = None):
+    users = get_user_collection()
+
+    query = {}
+    if search:
+        query = {
+            '$or': [
+                {'name': {'$regex': search, '$options': 'i'}},
+                {'email': {'$regex': search, '$options': 'i'}}
+            ]
+        }
+
+    users_cursor = users.find(query).sort('created_at', -1)
+
+    return [
+        {
+            '_id': str(user['_id']),
+            'google_id': user.get('google_id'),
+            'email': user.get('email'),
+            'name': user.get('name', 'Google User'),
+            'avatar': user.get('avatar'),
+            'gender': user.get('gender'),
+            'provider': user.get('provider', 'google'),
+            'status': user.get('status', 'active'),
+            'created_at': user.get('created_at'),
+            'updated_at': user.get('updated_at')
+        }
+        for user in users_cursor
+    ]
+
 def verify_google_token(token: str) -> dict | None:
     try:
         idinfo = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)

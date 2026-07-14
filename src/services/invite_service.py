@@ -122,23 +122,27 @@ def accept_invite_service(
 def get_workspace_invites_service(
     workspace_id: str,
     page: int = 1,
-    limit: int = 10
+    limit: int = 10,
+    status: str | None = None
 ):
     skip = (page - 1) * limit
 
+    query = {
+        "workspace_id": ObjectId(workspace_id)
+    }
+
+    if status:
+        query["status"] = status
+
     invites = list(
         invite_col()
-        .find({
-            "workspace_id": ObjectId(workspace_id)
-        })
+        .find(query)
         .sort("created_at", -1)
         .skip(skip)
         .limit(limit)
     )
 
-    total = invite_col().count_documents({
-        "workspace_id": ObjectId(workspace_id)
-    })
+    total = invite_col().count_documents(query)
 
     data = []
 
