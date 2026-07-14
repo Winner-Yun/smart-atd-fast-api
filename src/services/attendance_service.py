@@ -17,7 +17,25 @@ def member_col():
 
 
 def _parse_policy_time(time_value: str) -> dt_time:
-    return datetime.strptime(time_value.strip(), "%I:%M %p").time()
+    time_str = time_value.strip()
+    
+    try:
+        # Try parsing as 24-hour format (e.g., "19:30")
+        return datetime.strptime(time_str, "%H:%M").time()
+    except ValueError:
+        pass
+        
+    try:
+        # Fallback to 12-hour format (e.g., "07:30 PM")
+        return datetime.strptime(time_str, "%I:%M %p").time()
+    except ValueError:
+        pass
+        
+    try:
+        # Fallback for 24-hour format with seconds (e.g., "19:30:00")
+        return datetime.strptime(time_str, "%H:%M:%S").time()
+    except ValueError:
+        raise ValueError(f"Time data '{time_str}' does not match recognized formats (%H:%M, %I:%M %p, or %H:%M:%S)")
 
 
 def _get_workspace_tz(workspace_id: str) -> ZoneInfo:

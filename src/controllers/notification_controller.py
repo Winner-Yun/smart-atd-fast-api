@@ -57,10 +57,10 @@ def get_authenticated_user(
 # CREATE NOTIFICATION
 # =========================
 
-@router.post("/", response_model=NotificationResponse)
+@router.post("/{workspace_id}", response_model=NotificationResponse)
 def create_notification(
     payload: CreateNotificationRequest,
-    workspace_id: str = Header(...),
+    workspace_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
     user = get_authenticated_user(credentials)
@@ -111,9 +111,9 @@ def create_notification(
 # GET NOTIFICATIONS
 # =========================
 
-@router.get("/")
+@router.get("/{workspace_id}", response_model=list[NotificationResponse])
 def get_notifications(
-    workspace_id: str = Header(...),
+    workspace_id: str,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
@@ -131,10 +131,10 @@ def get_notifications(
 # READ NOTIFICATION
 # =========================
 
-@router.patch("/{notification_id}/read")
+@router.patch("/{workspace_id}/{notification_id}/read")
 def read_notification(
     notification_id: str,
-    workspace_id: str = Header(...),
+    workspace_id: str ,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
 
