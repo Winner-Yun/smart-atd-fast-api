@@ -26,15 +26,20 @@ def create_new_policy_service(workspace_id: str, user_id: str, data: dict):
     workspace_obj_id = ObjectId(workspace_id)
     user_obj_id = ObjectId(user_id)
 
-    if data.get("status") == "active":
-        member_col = collections("workspace_members")
-        owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
-        workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
-        if workspace_ids:
-            policy_col().update_many(
-                {"workspace_id": {"$in": workspace_ids}, "status": "active"},
-                {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
-            )
+    # Unconditionally set existing active policies to inactive
+    member_col = collections("workspace_members")
+    owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
+    workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
+    
+    # Safeguard: ensure the current workspace is always included in the deactivation update
+    if workspace_obj_id not in workspace_ids:
+        workspace_ids.append(workspace_obj_id)
+
+    if workspace_ids:
+        policy_col().update_many(
+            {"workspace_id": {"$in": workspace_ids}, "status": "active"},
+            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        )
 
     new_policy = {
         "workspace_id": workspace_obj_id,
@@ -47,7 +52,7 @@ def create_new_policy_service(workspace_id: str, user_id: str, data: dict):
         "deadline_scan_minutes": data["deadline_scan_minutes"],
         "annual_leave_limit": data["annual_leave_limit"],
         "sick_leave_limit": data["sick_leave_limit"],
-        "status": data.get("status", "inactive"),
+        "status": "active",  
         "created_at": datetime.now(timezone.utc),
         "updated_at": datetime.now(timezone.utc)
     }
