@@ -77,14 +77,14 @@ def get_workspaces_for_user_service(
     workspaces = workspace_col().find(query).sort("workspace_name", direction)
     return list(workspaces)
 
-
 # =========================
 # CREATE WORKSPACE
 # =========================
 def create_workspace_service(user_id: str, workspace_name: str, description: str):
     """
-    Creates a new active workspace and geofence, while deactivating 
-    any older workspaces/geofences owned by the same user.
+    Creates a new active workspace, while deactivating 
+    any older workspaces/geofences/policies owned by the same user.
+    Auto-creates ONLY the default holiday configuration.
     """
     user_obj_id = ObjectId(user_id)
 
@@ -127,33 +127,7 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
     workspace_id = res.inserted_id
     workspace["_id"] = workspace_id
 
-    geofence_col().insert_one({
-        "workspace_id": workspace_id,
-        "name": "Main Office",
-        "latitude": 0.0,
-        "longitude": 0.0,
-        "radius_meters": 100,
-        "status": "active",
-        "created_at": datetime.now(timezone.utc)
-    })
-
-    policy_col().insert_one({
-        "workspace_id": workspace_id,
-        "name": "Default Policy",
-        "work_start_time": "08:00 AM",
-        "work_end_time": "05:00 PM",
-        "check_in_start": "07:30 AM",
-        "check_out_start": "04:30 PM",
-        "late_buffer_minutes": 15,
-        "deadline_scan_minutes": 30,
-        "annual_leave_limit": 18,
-        "sick_leave_limit": 6,
-        "status": "active", 
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc)
-    })
-
-    # Auto create default holiday config
+    # Auto create default holiday config ONLY
     holiday_config_col().insert_one({
         "workspace_id": workspace_id,
         "include_public_holidays": True,
@@ -164,7 +138,6 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
     add_owner_service(str(workspace_id), user_id)
 
     return workspace
-
 
 # =========================
 # ADD OWNER

@@ -15,6 +15,12 @@ def attendance_col():
 def member_col():
     return collections("workspace_members")
 
+def policy_col():
+    return collections("attendance_policies")
+
+def geofence_col():
+    return collections("geofences")
+
 
 def _parse_policy_time(time_value: str) -> dt_time:
     time_str = time_value.strip()
@@ -341,6 +347,21 @@ def auto_mark_absences_service():
     marked_count = 0
     
     for ws_id in workspaces:
+        # CHECK: Workspace must have an active policy and active geofence
+        active_policy = policy_col().find_one({
+            "workspace_id": ws_id,
+            "status": "active"
+        })
+        
+        active_geofence = geofence_col().find_one({
+            "workspace_id": ws_id,
+            "status": "active"
+        })
+        
+        # Skip this workspace if either the policy or geofence is missing/inactive
+        if not active_policy or not active_geofence:
+            continue
+            
         # FIX: Find the current date context relative to the workspace's timezone location
         local_tz = _get_workspace_tz(str(ws_id))
         local_today = today_dt.astimezone(local_tz)
