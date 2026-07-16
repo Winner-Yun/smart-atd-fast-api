@@ -1,11 +1,13 @@
 from bson import ObjectId
 from datetime import datetime, timedelta, timezone
 from datetime import time as dt_time
-from zoneinfo import ZoneInfo  # Python 3.9+ native timezone support
 
 from src.services.holiday_service import is_working_day
 from src.services.attendance_policy_service import get_policy_service
 from src.config.mongo import collections
+
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 
 def attendance_col():
@@ -15,8 +17,10 @@ def attendance_col():
 def member_col():
     return collections("workspace_members")
 
+
 def policy_col():
     return collections("attendance_policies")
+
 
 def geofence_col():
     return collections("geofences")
@@ -44,14 +48,6 @@ def _parse_policy_time(time_value: str) -> dt_time:
         raise ValueError(f"Time data '{time_str}' does not match recognized formats (%H:%M, %I:%M %p, or %H:%M:%S)")
 
 
-def _get_workspace_tz(workspace_id: str) -> ZoneInfo:
-    """Helper to fetch workspace timezone from policy, defaulting to GMT+7."""
-    policy = get_policy_service(workspace_id)
-    if policy and "timezone" in policy:
-        return ZoneInfo(policy["timezone"])
-    return ZoneInfo("Asia/Phnom_Penh")  
-
-
 def _get_absence_deadline(workspace_id: str, reference_dt: datetime) -> datetime | None:
     policy = get_policy_service(workspace_id)
     if not policy:
@@ -63,21 +59,17 @@ def _get_absence_deadline(workspace_id: str, reference_dt: datetime) -> datetime
     if not check_out_start or deadline_scan_minutes is None:
         return None
 
-    # FIX: Convert UTC reference time to local workspace timezone before replacing hours
-    local_tz = _get_workspace_tz(workspace_id)
-    local_dt = reference_dt.astimezone(local_tz)
-
+    # Strictly use UTC+7 local context directly
     check_out_time = _parse_policy_time(check_out_start)
-    local_deadline = local_dt.replace(
+    local_deadline = reference_dt.replace(
         hour=check_out_time.hour,
         minute=check_out_time.minute,
         second=0,
         microsecond=0,
     )
 
-    # Add scan minutes in local context, then convert back to UTC for safe matching
     final_deadline = local_deadline + timedelta(minutes=int(deadline_scan_minutes))
-    return final_deadline.astimezone(timezone.utc)
+    return final_deadline.astimezone(LOCAL_TZ)
 
 
 def create_checkin_service(
@@ -97,9 +89,8 @@ def create_checkin_service(
     if not member:
         return "not_member"
 
-    # FIX: Use workspace local time instead of UTC to determine the calendar date string
-    local_tz = _get_workspace_tz(workspace_id)
-    today = datetime.now(local_tz).strftime("%Y-%m-%d")
+    # Strictly UTC+7 local date
+    today = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
 
     existing = attendance_col().find_one({
         "workspace_id": ObjectId(workspace_id),
@@ -108,20 +99,20 @@ def create_checkin_service(
     })
 
     if existing:
-        # FIX: If an automatic 'absent' placeholder exists, let them overwrite it with an actual check-in
+        # If an automatic 'absent' placeholder exists, overwrite it with an actual check-in
         if existing.get("status") == "absent" and existing.get("check_in") is None:
             attendance_col().update_one(
                 {"_id": existing["_id"]},
                 {
                     "$set": {
-                        "check_in": datetime.now(timezone.utc),
+                        "check_in": datetime.now(LOCAL_TZ),
                         "status": "present",  # Switches from absent to present
                         "face_verified": face_verified,
                         "liveness_verified": liveness_verified,
                         "mock_location_detected": mock_location_detected,
                         "latitude": latitude,
                         "longitude": longitude,
-                        "updated_at": datetime.now(timezone.utc)
+                        "updated_at": datetime.now(LOCAL_TZ)
                     }
                 }
             )
@@ -133,7 +124,7 @@ def create_checkin_service(
         "workspace_id": ObjectId(workspace_id),
         "user_id": ObjectId(user_id),
         "date": today,
-        "check_in": datetime.now(timezone.utc),
+        "check_in": datetime.now(LOCAL_TZ),
         "check_out": None,
         "status": "present",
         "face_verified": face_verified,
@@ -141,7 +132,7 @@ def create_checkin_service(
         "mock_location_detected": mock_location_detected,
         "latitude": latitude,
         "longitude": longitude,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(LOCAL_TZ),
         "updated_at": None
     }
 
@@ -159,9 +150,8 @@ def create_checkout_service(workspace_id: str, user_id: str):
     if not member:
         return "not_member"
 
-    # FIX: Use workspace local date to look up today's record
-    local_tz = _get_workspace_tz(workspace_id)
-    today = datetime.now(local_tz).strftime("%Y-%m-%d")
+    # Strictly UTC+7 local date
+    today = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
 
     attendance = attendance_col().find_one({
         "workspace_id": ObjectId(workspace_id),
@@ -176,8 +166,8 @@ def create_checkout_service(workspace_id: str, user_id: str):
         {"_id": attendance["_id"]},
         {
             "$set": {
-                "check_out": datetime.now(timezone.utc),
-                "updated_at": datetime.now(timezone.utc)
+                "check_out": datetime.now(LOCAL_TZ),
+                "updated_at": datetime.now(LOCAL_TZ)
             }
         }
     )
@@ -219,8 +209,7 @@ def get_my_attendance_service(
         query["status"] = status.lower()
 
     if date_filter:
-        local_tz = _get_workspace_tz(workspace_id)
-        now_local = datetime.now(local_tz)
+        now_local = datetime.now(LOCAL_TZ)
         if date_filter == "today":
             query["date"] = now_local.strftime("%Y-%m-%d")
         elif date_filter == "yesterday":
@@ -342,7 +331,7 @@ def get_workspace_attendance_service(
 # ========================
 
 def auto_mark_absences_service():
-    today_dt = datetime.now(timezone.utc)
+    today_dt = datetime.now(LOCAL_TZ)
     workspaces = member_col().distinct("workspace_id")
     marked_count = 0
     
@@ -358,16 +347,14 @@ def auto_mark_absences_service():
             "status": "active"
         })
         
-        # Skip this workspace if either the policy or geofence is missing/inactive
+  
         if not active_policy or not active_geofence:
             continue
             
-        # FIX: Find the current date context relative to the workspace's timezone location
-        local_tz = _get_workspace_tz(str(ws_id))
-        local_today = today_dt.astimezone(local_tz)
-        today_str = local_today.strftime("%Y-%m-%d")
+        # Strictly UTC+7 local date mapping
+        today_str = today_dt.strftime("%Y-%m-%d")
       
-        if not is_working_day(str(ws_id), local_today):
+        if not is_working_day(str(ws_id), today_dt):
             continue  
 
         absence_deadline = _get_absence_deadline(str(ws_id), today_dt)

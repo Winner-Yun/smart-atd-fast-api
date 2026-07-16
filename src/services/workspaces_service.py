@@ -1,43 +1,36 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 from src.config.mongo import collections
 
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 def workspace_col():
     return collections("workspaces")
 
-
 def member_col():
     return collections("workspace_members")
-
 
 def geofence_col():
     return collections("geofences")
 
-
 def policy_col():
     return collections("attendance_policies")
-
 
 def invite_col():
     return collections("workspace_invites")
 
-
 def leave_col():
     return collections("leave_requests")
-
 
 def holiday_col():
     return collections("holidays")
 
-
 def holiday_config_col():
     return collections("holiday_configs")
 
-
 def attendance_col():
     return collections("attendances")
-
 
 ##========================
 ## WORKSPACE src.services
@@ -103,24 +96,24 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
         # Deactivate old workspaces
         workspace_col().update_many(
             {"_id": {"$in": old_workspace_ids}, "status": "active"},
-            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+            {"$set": {"status": "inactive", "updated_at": datetime.now(LOCAL_TZ)}}
         )
         # Deactivate old geofences
         geofence_col().update_many(
             {"workspace_id": {"$in": old_workspace_ids}, "status": "active"},
-            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+            {"$set": {"status": "inactive", "updated_at": datetime.now(LOCAL_TZ)}}
         )
         # Deactivate old policies
         policy_col().update_many(
             {"workspace_id": {"$in": old_workspace_ids}, "status": "active"},
-            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+            {"$set": {"status": "inactive", "updated_at": datetime.now(LOCAL_TZ)}}
         )
 
     workspace = {
         "workspace_name": workspace_name,
         "description": description,
         "status": "active",
-        "created_at": datetime.now(timezone.utc)
+        "created_at": datetime.now(LOCAL_TZ)
     }
 
     res = workspace_col().insert_one(workspace)
@@ -132,7 +125,7 @@ def create_workspace_service(user_id: str, workspace_name: str, description: str
         "workspace_id": workspace_id,
         "include_public_holidays": True,
         "include_weekend": "Saturday and Sunday",
-        "updated_at": datetime.now(timezone.utc)
+        "updated_at": datetime.now(LOCAL_TZ)
     })
     
     add_owner_service(str(workspace_id), user_id)
@@ -151,11 +144,10 @@ def add_owner_service(
         "user_id": ObjectId(user_id),
         "position": "owner",
         "role": "owner",
-        "joined_at": datetime.now(timezone.utc)
+        "joined_at": datetime.now(LOCAL_TZ)
     }
 
     member_col().insert_one(member)
-
 
 # =========================
 # CHECK OWNER
@@ -170,7 +162,6 @@ def check_owner(
         "role": "owner"
     })
 
-
 # =========================
 # UPDATE WORKSPACE
 # =========================
@@ -181,7 +172,7 @@ def update_workspace_service(
     status: str | None
 ):
     update_data = {
-        "updated_at": datetime.now(timezone.utc)
+        "updated_at": datetime.now(LOCAL_TZ)
     }
 
     if workspace_name is not None:
@@ -205,12 +196,10 @@ def update_workspace_service(
         "_id": ObjectId(workspace_id)
     })
 
-
 # =========================
 # DELETE WORKSPACE
 # =========================
 def delete_workspace_service(workspace_id: str):
-
     workspace = workspace_col().find_one({
         "_id": ObjectId(workspace_id)
     })

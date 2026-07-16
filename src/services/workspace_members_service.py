@@ -1,6 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 from src.config.mongo import collections
+
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 def workspace_col():
     return collections("workspaces")
@@ -14,7 +17,6 @@ def user_col():
 def invite_col():
     return collections("workspace_invites")
 
-
 def get_workspace_members_service(
     workspace_id: str,
     search: str | None = None,
@@ -23,11 +25,9 @@ def get_workspace_members_service(
 ):
     ws_object_id = ObjectId(workspace_id)
     
-    
     members_cursor = list(member_col().find({"workspace_id": ws_object_id}))
     user_ids = [m["user_id"] for m in members_cursor]
     
-
     users_cursor = list(user_col().find({"_id": {"$in": user_ids}}))
     user_map = {str(u["_id"]): u for u in users_cursor}
 
@@ -43,20 +43,17 @@ def get_workspace_members_service(
             "avatar": user_data.get("avatar"),
             "gender": user_data.get("gender"),
             "provider": user_data.get("provider"),
-
             "email": user_data.get("email") or None, 
             "name": user_data.get("name", "Unknown User"),
             "role": m.get("role", "member"),
             "status": m.get("status", "active"),
             "is_pending": False,
             "joined_at": m.get("joined_at"),
-            
-           
             "created_at": m.get("created_at"),
             "updated_at": m.get("updated_at")
         })
 
-    # 2. Fetch Pending Invites (if requested)
+    # Fetch Pending Invites (if requested)
     if include_pending:
         invites_cursor = list(invite_col().find({
             "workspace_id": ws_object_id, 
@@ -66,7 +63,6 @@ def get_workspace_members_service(
         for inv in invites_cursor:
             member_list.append({
                 "id": str(inv["_id"]),  
-                # FIX: Use `or None` here as well
                 "email": inv.get("email") or None,
                 "name": "Pending Invite",
                 "role": inv.get("role", "member"),
@@ -76,7 +72,6 @@ def get_workspace_members_service(
                 "joined_at": inv.get("created_at")
             })
 
-    
     if search:
         search_lower = search.lower()
         member_list = [
@@ -84,17 +79,14 @@ def get_workspace_members_service(
             if search_lower in (m["email"] or "").lower() or search_lower in m["name"].lower()
         ]
 
-
     is_reverse = True if sort_order.lower() == "desc" else False
     
-
     member_list.sort(
         key=lambda x: (x["name"] if x["name"] != "Pending Invite" else (x["email"] or "")).lower(),
         reverse=is_reverse
     )
 
     return member_list
-
 
 def update_member_status_service(workspace_id: str, user_id: str, status: str):
     """Suspend or reactivate a member."""
@@ -104,11 +96,10 @@ def update_member_status_service(workspace_id: str, user_id: str, status: str):
             "user_id": ObjectId(user_id),
             "role": {"$ne": "owner"} 
         },
-        {"$set": {"status": status, "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"status": status, "updated_at": datetime.now(LOCAL_TZ)}}
     )
     
     return result.modified_count > 0
-
 
 def remove_member_service(workspace_id: str, user_id: str):
     """Completely remove a member from the workspace."""

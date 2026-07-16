@@ -15,6 +15,7 @@ from src.controllers.workspace_controller.workspace_geofence import router as wo
 from src.controllers.workspace_controller.workspace_operations import router as workspace_operations_router
 from src.controllers.workspace_controller.workspace_invites_controller import router as workspace_invites_router
 from src.controllers.workspace_controller.workspace_members_controller import router as workspace_members_router
+from src.controllers.notification_alert_controller import router as notification_alert_router
 
 
 
@@ -73,11 +74,13 @@ app.include_router(workspace_geofence_router, prefix='/workspace')
 app.include_router(workspace_policy_router, prefix='/workspace')
 app.include_router(workspace_holidays_router, prefix='/workspace')
 app.include_router(workspace_operations_router, prefix='/workspace')
+app.include_router(notification_alert_router)
 
 app.include_router(invite_router, prefix='/invite')
 app.include_router(face_router, prefix='/face')
 app.include_router(leave_router, prefix='/leave')
 app.include_router(attendance_router, prefix='/attendance')
 app.include_router(notification_router, prefix='/notification')
+
 app.include_router(chat_router, prefix='/chat')
 app.include_router(health_router, prefix='/health')

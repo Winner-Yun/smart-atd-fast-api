@@ -4,14 +4,14 @@ from datetime import datetime, timezone, timedelta
 from src.config.mongo import collections
 from src.services.auth_service import get_user_by_email
 
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 def invite_col():
     return collections("workspace_invites")
 
-
 def member_col():
     return collections("workspace_members")
-
 
 def create_invite_service(
     workspace_id: str,
@@ -41,15 +41,14 @@ def create_invite_service(
         "position": position,
         "role": role,
         "status": "pending",
-        "created_at": datetime.now(timezone.utc),
-        "expires_at": datetime.now(timezone.utc) + timedelta(hours=expire_hours)
+        "created_at": datetime.now(LOCAL_TZ),
+        "expires_at": datetime.now(LOCAL_TZ) + timedelta(hours=expire_hours)
     }
 
     result = invite_col().insert_one(invite)
     invite["_id"] = result.inserted_id
 
     return invite
-
 
 def accept_invite_service(
     invite_id: str,
@@ -65,25 +64,21 @@ def accept_invite_service(
     if str(invite["user_id"]) != current_user_id:
         return "forbidden"
 
-    now = datetime.now(timezone.utc)
-
+    now = datetime.now(LOCAL_TZ)
     expires_at = invite.get("expires_at")
 
     if expires_at:
-        # MongoDB may return naive datetime
+        # Normalize naive/UTC database formats cleanly into local context
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
+            expires_at = expires_at.replace(tzinfo=timezone.utc).astimezone(LOCAL_TZ)
+        else:
+            expires_at = expires_at.astimezone(LOCAL_TZ)
 
         if now > expires_at:
             invite_col().update_one(
                 {"_id": invite["_id"]},
-                {
-                    "$set": {
-                        "status": "expired"
-                    }
-                }
+                {"$set": {"status": "expired"}}
             )
-
             return "expired"
 
     if invite["status"] != "pending":
@@ -102,7 +97,7 @@ def accept_invite_service(
         "user_id": invite["user_id"],
         "position": invite["position"],
         "role": invite["role"],
-        "joined_at": datetime.now(timezone.utc)
+        "joined_at": datetime.now(LOCAL_TZ)
     }
 
     member_col().insert_one(member)
@@ -112,7 +107,7 @@ def accept_invite_service(
         {
             "$set": {
                 "status": "accepted",
-                "accepted_at": datetime.now(timezone.utc)
+                "accepted_at": datetime.now(LOCAL_TZ)
             }
         }
     )
@@ -143,7 +138,6 @@ def get_workspace_invites_service(
     )
 
     total = invite_col().count_documents(query)
-
     data = []
 
     for invite in invites:

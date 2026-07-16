@@ -1,20 +1,20 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 from src.config.mongo import collections
+
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 def policy_col():
     return collections("attendance_policies")
 
 def get_policy_service(workspace_id: str):
-  
     policy = policy_col().find_one({"workspace_id": ObjectId(workspace_id), "status": "active"})
     if not policy:
-      
         policy = policy_col().find_one({"workspace_id": ObjectId(workspace_id)})
     return policy
 
 def list_workspace_policies_service(workspace_id: str, search_term: str = None):
-  
     query = {"workspace_id": ObjectId(workspace_id)}
     
     if search_term:
@@ -28,7 +28,7 @@ def create_new_policy_service(workspace_id: str, user_id: str, data: dict):
     # Set existing active policies strictly in THIS workspace to inactive
     policy_col().update_many(
         {"workspace_id": workspace_obj_id, "status": "active"},
-        {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"status": "inactive", "updated_at": datetime.now(LOCAL_TZ)}}
     )
 
     new_policy = {
@@ -43,8 +43,8 @@ def create_new_policy_service(workspace_id: str, user_id: str, data: dict):
         "annual_leave_limit": data["annual_leave_limit"],
         "sick_leave_limit": data["sick_leave_limit"],
         "status": "active",  
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc)
+        "created_at": datetime.now(LOCAL_TZ),
+        "updated_at": datetime.now(LOCAL_TZ)
     }
 
     res = policy_col().insert_one(new_policy)
@@ -59,10 +59,10 @@ def update_policy_service(workspace_id: str, policy_id: str, user_id: str, data:
         # Deactivate other active policies in this workspace only
         policy_col().update_many(
             {"workspace_id": workspace_obj_id, "status": "active"},
-            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+            {"$set": {"status": "inactive", "updated_at": datetime.now(LOCAL_TZ)}}
         )
 
-    update_data = {"updated_at": datetime.now(timezone.utc)}
+    update_data = {"updated_at": datetime.now(LOCAL_TZ)}
     for key, val in data.items():
         if val is not None:
             update_data[key] = val
@@ -88,7 +88,6 @@ def delete_policy_service(workspace_id: str, policy_id: str):
     if not target:
         return {"success": False, "error": "Attendance policy not found."}
 
-  
     if target.get("status") == "active":
         return {"success": False, "error": "Cannot delete an active policy. Switch to another policy first."}
 
@@ -106,12 +105,12 @@ def activate_policy_service(workspace_id: str, policy_id: str, user_id: str):
     # Deactivate other active policies in this workspace only
     policy_col().update_many(
         {"workspace_id": workspace_obj_id, "status": "active"},
-        {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"status": "inactive", "updated_at": datetime.now(LOCAL_TZ)}}
     )
 
     policy_col().update_one(
         {"_id": policy_obj_id, "workspace_id": workspace_obj_id},
-        {"$set": {"status": "active", "updated_at": datetime.now(timezone.utc)}}
+        {"$set": {"status": "active", "updated_at": datetime.now(LOCAL_TZ)}}
     )
 
     return policy_col().find_one({"_id": policy_obj_id, "workspace_id": workspace_obj_id})

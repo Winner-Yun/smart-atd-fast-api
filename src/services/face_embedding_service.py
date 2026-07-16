@@ -1,7 +1,7 @@
 import os
 import json
 from bson import ObjectId
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from cryptography.fernet import Fernet
 
 from src.config.mongo import collections
@@ -12,22 +12,20 @@ if not ENCRYPTION_KEY:
 
 fernet = Fernet(ENCRYPTION_KEY)
 
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
+
 def face_col():
     return collections("face_embeddings")
 
 def _encrypt_vector(embeddings: list[float]) -> str:
-    """Converts a float list to an encrypted string."""
     data = json.dumps(embeddings).encode('utf-8')
     return fernet.encrypt(data).decode('utf-8')
 
 def _decrypt_vector(encrypted_data: str) -> list[float]:
-    """Decrypts a string back to a float list."""
     decrypted_data = fernet.decrypt(encrypted_data.encode('utf-8'))
     return json.loads(decrypted_data.decode('utf-8'))
 
-# =========================
-# CREATE
-# =========================
 def save_face_embedding_service(
     user_id: str,
     embeddings: list[float]
@@ -46,7 +44,7 @@ def save_face_embedding_service(
             {
                 "$set": {
                     "embeddings": encrypted_embeddings,
-                    "updated_at": datetime.now(timezone.utc)
+                    "updated_at": datetime.now(LOCAL_TZ)
                 }
             }
         )
@@ -57,7 +55,7 @@ def save_face_embedding_service(
     face = {
         "user_id": ObjectId(user_id),
         "embeddings": encrypted_embeddings,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(LOCAL_TZ),
         "updated_at": None
     }
 
@@ -67,9 +65,6 @@ def save_face_embedding_service(
     face["embeddings"] = _decrypt_vector(face["embeddings"])
     return face
 
-# ========================= 
-# UPDATE
-# =========================
 def update_face_embedding_service(
     user_id: str,
     embeddings: list[float]
@@ -83,7 +78,7 @@ def update_face_embedding_service(
         {
             "$set": {
                 "embeddings": encrypted_embeddings,
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": datetime.now(LOCAL_TZ)
             }
         }
     )
@@ -95,9 +90,6 @@ def update_face_embedding_service(
     updated["embeddings"] = _decrypt_vector(updated["embeddings"])
     return updated
 
-# =========================
-# GET MY FACE
-# =========================
 def get_face_embedding_service(
     user_id: str
 ):
@@ -110,10 +102,6 @@ def get_face_embedding_service(
         
     return face
 
-
-# =========================
-# DELETE MY FACE
-# =========================
 def delete_face_embedding_service(
     user_id: str
 ):

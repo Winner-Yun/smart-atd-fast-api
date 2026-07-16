@@ -1,4 +1,3 @@
-# src/services/auth_service.py
 import os
 import datetime
 import jwt
@@ -12,11 +11,14 @@ from src.config.mongo import collections
 
 JWT_SECRET = os.getenv('JWT_SECRET', 'please-change-me')
 ALGORITHM = 'HS256'
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES'))
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv('ACCESS_TOKEN_EXPIRE_MINUTES', '15'))
 REFRESH_TOKEN_EXPIRE_DAYS = 30
 GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 ALLOWED_IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
 ALLOWED_IMAGE_MIMES = {'image/jpeg', 'image/png', 'image/webp'}
+
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = datetime.timezone(datetime.timedelta(hours=7))
 
 def get_user_collection():
     return collections('users')
@@ -27,7 +29,6 @@ def get_refresh_token_collection():
 def get_user_by_email(email: str):
     users = get_user_collection()
     return users.find_one({'email': email})
-
 
 def get_all_users_service(search: str | None = None):
     users = get_user_collection()
@@ -78,7 +79,7 @@ def authenticate_google_user(google_user_info: dict) -> dict | None:
         return None
 
     user = users.find_one({'$or': [{'google_id': google_id}, {'email': email}]})
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(LOCAL_TZ)
 
     if user:
         update_data = {'updated_at': now}
@@ -128,11 +129,9 @@ def authenticate_google_user(google_user_info: dict) -> dict | None:
 
     return new_user_doc
 
-
 def get_user_by_google_id(google_id: str):
     users = get_user_collection()
     return users.find_one({'google_id': google_id})
-
 
 def update_user_profile(google_id: str, name: str, gender: str | None):
     users = get_user_collection()
@@ -142,7 +141,7 @@ def update_user_profile(google_id: str, name: str, gender: str | None):
             '$set': {
                 'name': name,
                 'gender': gender,
-                'updated_at': datetime.datetime.now(datetime.timezone.utc)
+                'updated_at': datetime.datetime.now(LOCAL_TZ)
             }
         }
     )
@@ -151,7 +150,6 @@ def update_user_profile(google_id: str, name: str, gender: str | None):
         return None
 
     return users.find_one({'google_id': google_id})
-
 
 def update_user_profile_image(google_id: str, avatar_url: str):
     users = get_user_collection()
@@ -160,7 +158,7 @@ def update_user_profile_image(google_id: str, avatar_url: str):
         {
             '$set': {
                 'avatar': avatar_url,
-                'updated_at': datetime.datetime.now(datetime.timezone.utc)
+                'updated_at': datetime.datetime.now(LOCAL_TZ)
             }
         }
     )
@@ -170,18 +168,11 @@ def update_user_profile_image(google_id: str, avatar_url: str):
 
     return users.find_one({'google_id': google_id})
 
-
 def validate_image_security(file) -> bool:
-    """
-    Validates file extension, MIME type, and binary magic bytes 
-    to prevent script injections and disguised malicious files.
-    """
-
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_IMAGE_EXTENSIONS:
         raise ValueError(f"Invalid file extension. Allowed: {', '.join(ALLOWED_IMAGE_EXTENSIONS)}")
         
-    # 2. Check MIME Type from the request
     if hasattr(file, 'content_type') and file.content_type not in ALLOWED_IMAGE_MIMES:
         raise ValueError(f"Invalid content type. Allowed: {', '.join(ALLOWED_IMAGE_MIMES)}")
    
@@ -192,22 +183,19 @@ def validate_image_security(file) -> bool:
     is_valid_signature = False
     
     if header.startswith(b'\xff\xd8\xff'):
-        is_valid_signature = True  # JPEG
+        is_valid_signature = True  
     elif header.startswith(b'\x89PNG\r\n\x1a\n'):
-        is_valid_signature = True  # PNG
+        is_valid_signature = True  
     elif header.startswith(b'RIFF') and header[8:12] == b'WEBP':
-        is_valid_signature = True  # WEBP
+        is_valid_signature = True  
         
     if not is_valid_signature:
         raise ValueError("File content signature does not match a valid image. Upload rejected.")
         
     return True
 
-
 def upload_profile_image_to_cloudinary(file):
-    # Run security checks before touching Cloudinary
     validate_image_security(file)
-    
     configure_cloudinary_client()
     file.file.seek(0)
     upload_result = cloudinary.uploader.upload(
@@ -219,11 +207,9 @@ def upload_profile_image_to_cloudinary(file):
     )
     return upload_result.get('secure_url')
 
-
 def get_current_user_from_token(token: str):
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        # Ensure an access token isn't being improperly used if it lacks type fields
         if payload.get('type') == 'refresh':
             return None
     except jwt.PyJWTError:
@@ -235,9 +221,8 @@ def get_current_user_from_token(token: str):
 
     return get_user_by_google_id(google_id)
 
-
 def create_access_token(subject: str):
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(LOCAL_TZ)
     expire = now + datetime.timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     
     payload = {
@@ -249,14 +234,8 @@ def create_access_token(subject: str):
 
     return jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)
 
-
-# ==========================================
-# NEW: REFRESH TOKEN LIFECYCLE MANAGEMENT
-# ==========================================
-
 def create_refresh_token(subject: str) -> str:
-    """Generates a 30-day secure refresh token and records it in DB."""
-    now = datetime.datetime.now(datetime.timezone.utc)
+    now = datetime.datetime.now(LOCAL_TZ)
     expire = now + datetime.timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     
     payload = {
@@ -268,7 +247,6 @@ def create_refresh_token(subject: str) -> str:
     
     token = jwt.encode(payload, JWT_SECRET, algorithm=ALGORITHM)
     
-    # Secure tracking for revocation validation
     get_refresh_token_collection().insert_one({
         'google_id': subject,
         'token': token,
@@ -278,12 +256,9 @@ def create_refresh_token(subject: str) -> str:
     
     return token
 
-
 def verify_refresh_token_service(token: str) -> str | None:
-    """Validates the structure, cryptographic signatures, and status of a refresh token."""
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
-        
         if payload.get('type') != 'refresh':
             return None
             
@@ -291,7 +266,6 @@ def verify_refresh_token_service(token: str) -> str | None:
         if not google_id:
             return None
             
-        # Verify it exists in our active list (not revoked)
         db_token = get_refresh_token_collection().find_one({
             'google_id': google_id,
             'token': token
@@ -303,8 +277,6 @@ def verify_refresh_token_service(token: str) -> str | None:
     except jwt.PyJWTError:
         return None
 
-
 def revoke_refresh_token_service(token: str) -> bool:
-    """Deletes a refresh token from storage to invalidate it immediately."""
     result = get_refresh_token_collection().delete_one({'token': token})
     return result.deleted_count > 0

@@ -1,7 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from bson import ObjectId
 from src.config.mongo import collections
 
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 def notification_col():
     return collections("notifications")
@@ -29,7 +31,6 @@ def create_notification_service(
     type: str,
     target: str
 ):
-  
     if target.startswith("personal:"):
         email = target.split(":")[1].strip()
         
@@ -39,7 +40,6 @@ def create_notification_service(
             
         target_user_id = str(target_user["_id"])
         
-   
         if not is_member(workspace_id, target_user_id):
             return "not_member"
             
@@ -52,16 +52,14 @@ def create_notification_service(
         "message": message,
         "type": type,
         "target": target,
-        "created_at": datetime.now(timezone.utc)
+        "created_at": datetime.now(LOCAL_TZ)
     }
 
     res = notification_col().insert_one(data)
     data["_id"] = res.inserted_id
     return data
 
-
 def get_my_notifications_service(workspace_id: str, user_id: str):
-
     notifications = notification_col().find({
         "workspace_id": ObjectId(workspace_id),
         "$or": [
@@ -75,7 +73,6 @@ def get_my_notifications_service(workspace_id: str, user_id: str):
     result = []
 
     for n in notifications:
-
         target = n["target"]
 
         # personal check
@@ -102,9 +99,7 @@ def get_my_notifications_service(workspace_id: str, user_id: str):
 
     return result
 
-
 def read_notification_service(notification_id: str, user_id: str):
-
     n = notification_col().find_one({"_id": ObjectId(notification_id)})
 
     if not n:
@@ -131,7 +126,7 @@ def read_notification_service(notification_id: str, user_id: str):
         notification_read_col().insert_one({
             "notification_id": ObjectId(notification_id),
             "user_id": ObjectId(user_id),
-            "read_at": datetime.now(timezone.utc)
+            "read_at": datetime.now(LOCAL_TZ)
         })
 
     return True

@@ -4,6 +4,8 @@ from datetime import datetime, timedelta, timezone
 from src.services.workspaces_service import attendance_col
 from src.config.mongo import collections
 
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 def leave_col():
     return collections("leave_requests")
@@ -94,7 +96,7 @@ def create_leave_service(
         "end_date": end_date_value,
         "status": "pending",
         "approved_by": None,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(LOCAL_TZ),
         "updated_at": None
     }
 
@@ -129,7 +131,7 @@ def get_my_leaves_service(
         query["status"] = status.lower()
    
     if date_filter:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(LOCAL_TZ)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
 
@@ -194,18 +196,18 @@ def get_workspace_leaves_service(
         base_match["status"] = status.lower()
 
     if exact_date:
-        target_date = datetime.strptime(exact_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        target_date = datetime.strptime(exact_date, "%Y-%m-%d").replace(tzinfo=LOCAL_TZ)
         next_day = target_date + timedelta(days=1)
         base_match["created_at"] = {"$gte": target_date, "$lt": next_day}
     
     elif month_year:
-        target_month = datetime.strptime(month_year, "%Y-%m").replace(tzinfo=timezone.utc)
+        target_month = datetime.strptime(month_year, "%Y-%m").replace(tzinfo=LOCAL_TZ)
         # Advance to the 1st of the next month
         next_month = (target_month.replace(day=28) + timedelta(days=4)).replace(day=1)
         base_match["created_at"] = {"$gte": target_month, "$lt": next_month}
         
     elif date_filter:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(LOCAL_TZ)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         yesterday_start = today_start - timedelta(days=1)
 
@@ -303,7 +305,7 @@ def update_leave_service(
         return error
 
     update_data = {
-        "updated_at": datetime.now(timezone.utc)
+        "updated_at": datetime.now(LOCAL_TZ)
     }
 
     if leave_type is not None:
@@ -358,7 +360,7 @@ def approve_leave_service(
             "$set": {
                 "status": status,
                 "approved_by": ObjectId(owner_id),
-                "updated_at": datetime.now(timezone.utc)
+                "updated_at": datetime.now(LOCAL_TZ)
             }
         }
     )
@@ -384,7 +386,7 @@ def approve_leave_service(
                 {
                     "$set": {
                         "status": "present", 
-                        "updated_at": datetime.now(timezone.utc)
+                        "updated_at": datetime.now(LOCAL_TZ)
                     },
                     "$setOnInsert": {
                         "check_in": None,
@@ -394,7 +396,7 @@ def approve_leave_service(
                         "mock_location_detected": False,
                         "latitude": 0.0,
                         "longitude": 0.0,
-                        "created_at": datetime.now(timezone.utc)
+                        "created_at": datetime.now(LOCAL_TZ)
                     }
                 },
                 upsert=True

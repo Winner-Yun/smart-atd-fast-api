@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -23,6 +23,8 @@ from src.services.attendance_policy_service import (
 router = APIRouter(tags=["Workspace Policy"])
 bearer = HTTPBearer(auto_error=False)
 
+# Define the UTC+7 Local Timezone
+LOCAL_TZ = timezone(timedelta(hours=7))
 
 def verify_user_and_ownership(workspace_id: str, credentials):
     if not credentials:
@@ -68,7 +70,7 @@ def create_policy(
         annual_leave_limit=policy["annual_leave_limit"],
         sick_leave_limit=policy["sick_leave_limit"],
         status=policy.get("status", "inactive"),
-        created_at=policy.get("created_at", datetime.now(timezone.utc)),
+        created_at=policy.get("created_at", datetime.now(LOCAL_TZ)),
     )
 
 
@@ -100,7 +102,7 @@ def list_all_policies(
             annual_leave_limit=p["annual_leave_limit"],
             sick_leave_limit=p["sick_leave_limit"],
             status=p.get("status", "inactive"),
-            created_at=p.get("created_at", datetime.now(timezone.utc)),
+            created_at=p.get("created_at", datetime.now(LOCAL_TZ)),
         )
         for p in policies
     ]
@@ -135,7 +137,7 @@ def get_current_active_policy(
         annual_leave_limit=policy["annual_leave_limit"],
         sick_leave_limit=policy["sick_leave_limit"],
         status=policy.get("status", "inactive"),
-        created_at=policy.get("created_at", datetime.now(timezone.utc)),
+        created_at=policy.get("created_at", datetime.now(LOCAL_TZ)),
     )
 
 
@@ -171,7 +173,7 @@ def update_policy(
         annual_leave_limit=policy["annual_leave_limit"],
         sick_leave_limit=policy["sick_leave_limit"],
         status=policy.get("status", "inactive"),
-        created_at=policy.get("created_at", datetime.now(timezone.utc)),
+        created_at=policy.get("created_at", datetime.now(LOCAL_TZ)),
     )
 
 
@@ -224,5 +226,5 @@ def activate_policy(
         annual_leave_limit=policy["annual_leave_limit"],
         sick_leave_limit=policy["sick_leave_limit"],
         status=policy.get("status", "inactive"),
-        created_at=policy.get("created_at", datetime.now(timezone.utc)),
+        created_at=policy.get("created_at", datetime.now(LOCAL_TZ)),
     )
