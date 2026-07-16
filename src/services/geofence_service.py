@@ -36,19 +36,13 @@ def create_new_geofence_service(
     status: str = "inactive"
 ):
     workspace_obj_id = ObjectId(workspace_id)
-    user_obj_id = ObjectId(user_id)
 
-    
     if status == "active":
-        member_col = collections("workspace_members")
-        owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
-        workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
-
-        if workspace_ids:
-            geofence_col().update_many(
-                {"workspace_id": {"$in": workspace_ids}, "status": "active"},
-                {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
-            )
+        # Deactivate other active geofences in this workspace only
+        geofence_col().update_many(
+            {"workspace_id": workspace_obj_id, "status": "active"},
+            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        )
 
     new_geofence = {
         "workspace_id": workspace_obj_id,
@@ -65,7 +59,6 @@ def create_new_geofence_service(
     new_geofence["_id"] = res.inserted_id
     return new_geofence
 
-
 # =========================
 # UPDATE BY ID
 # =========================
@@ -81,18 +74,13 @@ def update_geofence_service(
 ):
     workspace_obj_id = ObjectId(workspace_id)
     geofence_obj_id = ObjectId(geofence_id)
-    user_obj_id = ObjectId(user_id)
 
     if status == "active":
-        member_col = collections("workspace_members")
-        owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
-        workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
-
-        if workspace_ids:
-            geofence_col().update_many(
-                {"workspace_id": {"$in": workspace_ids}, "status": "active"},
-                {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
-            )
+        # Deactivate other active geofences in this workspace only
+        geofence_col().update_many(
+            {"workspace_id": workspace_obj_id, "status": "active"},
+            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        )
 
     update_data = {
         "updated_at": datetime.now(timezone.utc)
@@ -153,24 +141,16 @@ def delete_geofence_service(workspace_id: str, geofence_id: str):
 def activate_geofence_service(workspace_id: str, geofence_id: str, user_id: str):
     workspace_obj_id = ObjectId(workspace_id)
     geofence_obj_id = ObjectId(geofence_id)
-    user_obj_id = ObjectId(user_id)
 
-   
     target = geofence_col().find_one({"_id": geofence_obj_id, "workspace_id": workspace_obj_id})
     if not target:
         return None
 
-
-    member_col = collections("workspace_members")
-    owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
-    workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
-
-    if workspace_ids:
-    
-        geofence_col().update_many(
-            {"workspace_id": {"$in": workspace_ids}, "status": "active"},
-            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
-        )
+    # Deactivate other active geofences in this workspace only
+    geofence_col().update_many(
+        {"workspace_id": workspace_obj_id, "status": "active"},
+        {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+    )
 
     geofence_col().update_one(
         {"_id": geofence_obj_id, "workspace_id": workspace_obj_id},

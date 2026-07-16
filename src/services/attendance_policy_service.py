@@ -24,22 +24,12 @@ def list_workspace_policies_service(workspace_id: str, search_term: str = None):
 
 def create_new_policy_service(workspace_id: str, user_id: str, data: dict):
     workspace_obj_id = ObjectId(workspace_id)
-    user_obj_id = ObjectId(user_id)
 
-    # Unconditionally set existing active policies to inactive
-    member_col = collections("workspace_members")
-    owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
-    workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
-    
-    # Safeguard: ensure the current workspace is always included in the deactivation update
-    if workspace_obj_id not in workspace_ids:
-        workspace_ids.append(workspace_obj_id)
-
-    if workspace_ids:
-        policy_col().update_many(
-            {"workspace_id": {"$in": workspace_ids}, "status": "active"},
-            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
-        )
+    # Set existing active policies strictly in THIS workspace to inactive
+    policy_col().update_many(
+        {"workspace_id": workspace_obj_id, "status": "active"},
+        {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+    )
 
     new_policy = {
         "workspace_id": workspace_obj_id,
@@ -64,17 +54,13 @@ def create_new_policy_service(workspace_id: str, user_id: str, data: dict):
 def update_policy_service(workspace_id: str, policy_id: str, user_id: str, data: dict):
     workspace_obj_id = ObjectId(workspace_id)
     policy_obj_id = ObjectId(policy_id)
-    user_obj_id = ObjectId(user_id)
 
     if data.get("status") == "active":
-        member_col = collections("workspace_members")
-        owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
-        workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
-        if workspace_ids:
-            policy_col().update_many(
-                {"workspace_id": {"$in": workspace_ids}, "status": "active"},
-                {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
-            )
+        # Deactivate other active policies in this workspace only
+        policy_col().update_many(
+            {"workspace_id": workspace_obj_id, "status": "active"},
+            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+        )
 
     update_data = {"updated_at": datetime.now(timezone.utc)}
     for key, val in data.items():
@@ -112,24 +98,17 @@ def delete_policy_service(workspace_id: str, policy_id: str):
 def activate_policy_service(workspace_id: str, policy_id: str, user_id: str):
     workspace_obj_id = ObjectId(workspace_id)
     policy_obj_id = ObjectId(policy_id)
-    user_obj_id = ObjectId(user_id)
 
     target = policy_col().find_one({"_id": policy_obj_id, "workspace_id": workspace_obj_id})
     if not target:
         return None
 
-    member_col = collections("workspace_members")
-    owner_workspaces = member_col.find({"user_id": user_obj_id, "role": "owner"}, {"workspace_id": 1})
-    workspace_ids = [entry["workspace_id"] for entry in owner_workspaces]
+    # Deactivate other active policies in this workspace only
+    policy_col().update_many(
+        {"workspace_id": workspace_obj_id, "status": "active"},
+        {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
+    )
 
-    if workspace_ids:
-      
-        policy_col().update_many(
-            {"workspace_id": {"$in": workspace_ids}, "status": "active"},
-            {"$set": {"status": "inactive", "updated_at": datetime.now(timezone.utc)}}
-        )
-
-    
     policy_col().update_one(
         {"_id": policy_obj_id, "workspace_id": workspace_obj_id},
         {"$set": {"status": "active", "updated_at": datetime.now(timezone.utc)}}
