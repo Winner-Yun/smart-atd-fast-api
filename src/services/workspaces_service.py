@@ -36,40 +36,41 @@ def attendance_col():
 ## WORKSPACE src.services
 #========================
 def get_workspaces_for_user_service(
-    user_id: str, 
-    search: str | None = None, 
-    sort: str = "asc", 
-    only_owner: bool = True
+    user_id: str,
+    search: str | None = None,
+    sort: str = "asc",
+    only_owner: bool = True,
+    only_member: bool = False,
 ):
-    query = {}
+    member_query = {"user_id": ObjectId(user_id)}
 
     if only_owner:
-        owner_workspaces = member_col().find(
-            {
-                "user_id": ObjectId(user_id),
-                "role": "owner"
-            },
-            {
-                "workspace_id": 1
-            }
-        )
-        workspace_ids = [
-            entry["workspace_id"]
-            for entry in owner_workspaces
-        ]
+        member_query["role"] = "owner"
+    elif only_member:
+        member_query["role"] = {"$ne": "owner"}
 
-        query["_id"] = {
-            "$in": workspace_ids
-        }
+    workspace_ids = [
+        member["workspace_id"]
+        for member in member_col().find(member_query, {"workspace_id": 1})
+    ]
+
+    workspace_query = {
+        "_id": {"$in": workspace_ids},
+    }
 
     if search:
-        query["workspace_name"] = {"$regex": search, "$options": "i"}
+        workspace_query["workspace_name"] = {
+            "$regex": search,
+            "$options": "i",
+        }
 
-    direction = 1 if sort.lower() == "asc" else -1
+    sort_direction = 1 if sort.lower() == "asc" else -1
 
-    workspaces = workspace_col().find(query).sort("workspace_name", direction)
-    return list(workspaces)
-
+    return list(
+        workspace_col()
+        .find(workspace_query)
+        .sort("workspace_name", sort_direction)
+    )
 # =========================
 # CREATE WORKSPACE
 # =========================

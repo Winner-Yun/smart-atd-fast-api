@@ -20,6 +20,7 @@ def get_my_workspaces(
     search: str | None = None,
     sort: str = "asc",
     only_owner: bool = True,
+    only_member: bool = False,
     credentials: HTTPAuthorizationCredentials = Depends(bearer)
 ):
     if not credentials:
@@ -28,17 +29,24 @@ def get_my_workspaces(
     user = get_current_user_from_token(credentials.credentials)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        
+
+    # Validate conflicting parameters
+    if only_owner and only_member:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Parameters 'only_owner' and 'only_member' cannot both be True."
+        )
+
     user_id = str(user["_id"])
 
-    # Line 45: Ensure the keyword names match the service function parameters exactly
     workspaces = get_workspaces_for_user_service(
         user_id=user_id,
         search=search,
         sort=sort,
-        only_owner=only_owner
+        only_owner=only_owner,
+        only_member=only_member
     )
-    
+
     return {
         "workspaces": [
             {
